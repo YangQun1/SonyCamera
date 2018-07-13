@@ -58,7 +58,7 @@ Global
 		{DFDAB369-767D-4577-8000-F8959CEFABEB}.Release|Mixed Platforms.Build.0 = Release|Win32
 		{DFDAB369-767D-4577-8000-F8959CEFABEB}.Release|Win32.ActiveCfg = Release|Win32
 		{DFDAB369-767D-4577-8000-F8959CEFABEB}.Release|Win32.Build.0 = Release|Win32
-		{DFDAB369-767D-4577-8000-F8959CEFABEB}.Release|x64.ActiveCfg = Release|Win32
+		{DFDAB369-767D-4577-8000-F8959CEFABEB}.Release|x64.ActiveCfg = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

@@ -2,8 +2,6 @@
 
 #include "stdafx.h"
 #include <XCCamAPI.h>
-#include <opencv2\core\core.hpp>
-#include <opencv2\highgui\highgui.hpp>
 
 #include "SequencePool.h"
 
@@ -51,6 +49,7 @@ public:
 	bool	_startAcquisition();
 	bool	_getImgBuf(UCHAR **pBuffer, int *pHeight, int *pWidth, int *pChannels);
 	bool	_getImgBuf(USHORT **pBuffer, int *pHeight, int *pWidth, int *pChannels);
+	bool	_getImgInfo(int *pHeight, int *pWidth, int *pBitPerPixel);
 };
 
 typedef Sony_Camera* Sony_Camera_Handle;

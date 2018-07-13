@@ -4,26 +4,32 @@
 #include "stdafx.h"
 
 #include <iostream>
-#include <XCCamAPI.h>
-#include <opencv2\core\core.hpp>
-#include <opencv2\highgui\highgui.hpp>
+// #include <XCCamAPI.h>
+
 
 #include "SonyCamera_Class.h"
 #include "SonyCamera_Library.h"
-/*
-打开相机
-包括实例化类，申请相关的资源等
-*/
+
+using namespace std;
 
 static Sony_Camera_Handle g_CameraHandle;
 
-cv::Mat *p_cvMat;
+/*---------------------------- C/C++接口-开始 ------------------------------------- */
+#ifdef _C_CPP_INTERFACE_
 
-// 对外的接口C/C++
+#include <opencv2\core\core.hpp>
+#include <opencv2\highgui\highgui.hpp>
+
 bool OpenCamera()
 {
+	bool ret;
 	g_CameraHandle = new Sony_Camera();
-	g_CameraHandle->_openCam();
+	ret = g_CameraHandle->_openCam();
+	if (!ret){
+		cout << "Sony Camera Open Failed" << endl;
+		return false;
+	}
+	cout << "Sony Camera Opened" << endl;
 	return true;
 }
 
@@ -96,7 +102,167 @@ cv::Mat GetImage()
 
 	return mat;
 }
+#endif
+/*---------------------------- C/C++接口-结束 ------------------------------------- */
+
+/*--------------------------- Python接口-开始 ------------------------------------- */
+#ifdef _PYTHON_INTERFACE_
+
+#include <Python.h>
+#include <numpy\ndarrayobject.h>
+
+UCHAR*  g_Buffer_BYTE = NULL;
+USHORT* g_Buffer_SHORT = NULL;
+
+static PyObject * OpenCamera_Py(PyObject *self, PyObject *args)
+{
+	// 打开相机
+	bool ret;
+	g_CameraHandle = new Sony_Camera();
+	ret = g_CameraHandle->_openCam();
+	if (!ret){
+		cout << "Sony Camera Open Failed" << endl;
+		Py_RETURN_NONE;
+	}
+	cout << "Sony Camera Opened" << endl;
+
+	// 为待处理图像申请内存
+	int height, width, bitPerPixel;
+	g_CameraHandle->_getImgInfo(&height, &width, &bitPerPixel);
+
+	if (bitPerPixel == 8 || bitPerPixel == 24){
+		g_Buffer_BYTE = new UCHAR[height*width*bitPerPixel / 8];
+	}
+	else if (bitPerPixel == 16 || bitPerPixel == 48){
+		g_Buffer_SHORT = new USHORT[height*width*bitPerPixel / 16];
+	}
 
 
+	Py_RETURN_NONE;
+}
 
+static PyObject * CloseCamera_Py(PyObject *self, PyObject *args)
+{
+	// 关闭相机
+	g_CameraHandle->_closeCam();
+	delete g_CameraHandle;
+	cout << "Sony Camera Closed" << endl;
+
+	// 释放待处理图像内存
+	if (g_Buffer_BYTE != NULL){
+		delete g_Buffer_BYTE;
+		g_Buffer_BYTE = NULL;
+	}
+	if (g_Buffer_SHORT != NULL){
+		delete g_Buffer_SHORT;
+		g_Buffer_SHORT = NULL;
+	}
+
+	Py_RETURN_NONE;
+}
+
+static PyObject * StartImageAcquisition_Py(PyObject *self, PyObject *args)
+{
+	g_CameraHandle->_startAcquisition();
+
+	Py_RETURN_NONE;
+}
+
+static PyObject * GetImage_Py(PyObject *self, PyObject *args)
+{
+	// 请求互斥锁
+	WaitForSingleObject(g_CameraHandle->hMutex, INFINITE);
+
+	PyObject *PyArray = Py_None;
+
+	if (g_CameraHandle->dataType == Mono8 || \
+		g_CameraHandle->dataType == BayerRG8){
+		UCHAR *imgBuf = NULL;
+		int height, width, channels;
+
+		g_CameraHandle->_getImgBuf(&imgBuf, &height, &width, &channels);
+
+		memcpy(g_Buffer_BYTE, imgBuf, height*width*channels);
+
+		npy_intp *Dims = NULL;
+		int dims;
+		if (channels == 1){
+			dims = 2;
+			Dims = new npy_intp[2];
+			Dims[0] = height;
+			Dims[1] = width;
+		}
+		else if (channels == 3){
+			dims = 3;
+			Dims = new npy_intp[3];
+			Dims[0] = height;
+			Dims[1] = width;
+			Dims[2] = channels;
+		}
+		else{
+			Py_RETURN_NONE;
+		}
+
+		PyArray = PyArray_SimpleNewFromData(dims, Dims, NPY_UBYTE, g_Buffer_BYTE);
+
+		delete Dims;
+	}
+	else if (g_CameraHandle->dataType == Mono12Packed || \
+		g_CameraHandle->dataType == BayerRG12Packed){
+		USHORT *imgBuf = NULL;
+		int height, width, channels;
+
+		g_CameraHandle->_getImgBuf(&imgBuf, &height, &width, &channels);
+
+		memcpy(g_Buffer_SHORT, imgBuf, height*width*channels*sizeof(USHORT));
+
+		npy_intp *Dims = NULL;
+		int dims;
+		if (channels == 1){
+			dims = 2;
+			Dims = new npy_intp[2];
+			Dims[0] = height;
+			Dims[1] = width;
+		}
+		else if (channels == 3){
+			dims = 3;
+			Dims = new npy_intp[3];
+			Dims[0] = height;
+			Dims[1] = width;
+			Dims[2] = channels;
+		}
+		else{
+			Py_RETURN_NONE;
+		}
+
+		PyArray = PyArray_SimpleNewFromData(dims, Dims, NPY_USHORT, g_Buffer_SHORT);
+
+		delete Dims;
+	}
+	else{
+		//TODO
+	}
+
+	// 释放互斥锁
+	ReleaseMutex(g_CameraHandle->hMutex);
+
+	return PyArray;
+}
+
+static PyMethodDef SonyCameraMethods[] = {
+	{ "OpenCamera", OpenCamera_Py, METH_NOARGS, "Function to open sony camera" },
+	{ "CloseCamera", CloseCamera_Py, METH_NOARGS, "Function to close sony camera" },
+	{ "StartImageAcquisition", StartImageAcquisition_Py, METH_NOARGS, "Function to start image acquisition" },
+	{ "GetImage", GetImage_Py, METH_NOARGS, "Function to get an image from camera(not directly from camera,but from image pool actually)" },
+	{ NULL, NULL, 0, NULL }
+};
+
+PyMODINIT_FUNC initSonyCamera(void) {
+	(void)Py_InitModule("SonyCamera", SonyCameraMethods);
+	import_array();
+}
+
+
+#endif
+/*--------------------------- Python接口-结束 ------------------------------------- */
 

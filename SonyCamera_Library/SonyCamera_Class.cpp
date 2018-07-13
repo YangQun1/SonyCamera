@@ -9,6 +9,7 @@
 
 using namespace std;
 
+// #define _IMAGECALLBACK_ 
 //---------------------------------------------------------------------------
 // System Call back
 // When bus reset occurred, when the numbers of camera that I can open changed
@@ -29,9 +30,9 @@ extern "C" VOID CALLBACK SystemFunc(STATUS_SYSTEMCODE Status, PVOID Countext)
 #ifdef _IMAGECALLBACK_
 extern "C"
 VOID  CALLBACK ImageDataRcv(HCAMERA hCamera,
-XCCAM_IMAGE* pImage,
-pXCCAM_IMAGEDATAINFO pImageInfo,
-PVOID Context)
+							XCCAM_IMAGE* pImage,
+							pXCCAM_IMAGEDATAINFO pImageInfo,
+							PVOID Context)
 {
 	Sony_Camera* pMp = (Sony_Camera*)Context;
 
@@ -41,21 +42,21 @@ PVOID Context)
 		Image_Pool_8Bit *poolHandle = (Image_Pool_8Bit *)(pMp->imgBufPoolHandle);
 		UCHAR *buffer = poolHandle->ReqBuffer();
 		// 使用相机API转为24bit的BMP彩图
-		XCCAM_ConvExec(pMp->hCamera, pMp->pImage, buffer);
+		XCCAM_ConvExec(pMp->hCamera, pImage, buffer);
 		poolHandle->PushBack(buffer);
 	}
 	else if (pMp->dataType == Mono8){
 		Image_Pool_8Bit *poolHandle = (Image_Pool_8Bit *)(pMp->imgBufPoolHandle);
 		UCHAR *buffer = poolHandle->ReqBuffer();
 		// 直接拷贝内存
-		memcpy(buffer, pMp->pImage->pBuffer, pMp->pImage->Length);
+		memcpy(buffer, pImage->pBuffer, pImage->Length);
 		poolHandle->PushBack(buffer);
 	}
 	else if (pMp->dataType == BayerRG12Packed){
 		Image_Pool_16Bit *poolHandle = (Image_Pool_16Bit *)(pMp->imgBufPoolHandle);
 		USHORT *buffer = poolHandle->ReqBuffer();
 		// 将12位的bayer转为12位三通道的rgb图像
-		// memcpy(buffer, pMp->pImage->pBuffer, pMp->pImage->Length);
+		// memcpy(buffer, pImage->pBuffer, pImage->Length);
 		// TODO
 		poolHandle->PushBack(buffer);
 	}
@@ -63,7 +64,7 @@ PVOID Context)
 		Image_Pool_16Bit *poolHandle = (Image_Pool_16Bit *)(pMp->imgBufPoolHandle);
 		USHORT *buffer = poolHandle->ReqBuffer();
 		// 直接拷贝内存
-		memcpy(buffer, pMp->pImage->pBuffer, pMp->pImage->Length);
+		memcpy(buffer, pImage->pBuffer, pImage->Length);
 		poolHandle->PushBack(buffer);
 	}
 	else{
@@ -73,6 +74,8 @@ PVOID Context)
 }
 #endif
 
+
+#ifndef _IMAGECALLBACK_
 // 定义图像采集线程函数
 unsigned int __stdcall ImageAcquThread(LPVOID Countext)
 {
@@ -146,6 +149,7 @@ unsigned int __stdcall ImageAcquThread(LPVOID Countext)
 	_endthreadex(0);
 	return 0;
 }
+#endif
 
 
 bool Sony_Camera::_openCam()
@@ -265,7 +269,6 @@ bool Sony_Camera::_closeCam()
 #ifdef _IMAGECALLBACK_
 		XCCAM_ImageStop(hCamera);
 		XCCAM_SetImageCallBack(hCamera, NULL, NULL, 0, FALSE);
-		CloseHandle(hThread);
 #else
 		SetEvent(endEvent);
 		XCCAM_ImageReqAbortAll(hCamera);
@@ -286,11 +289,11 @@ bool Sony_Camera::_closeCam()
 
 	// 释放内存池
 	if (dataType == BayerRG12Packed || dataType == Mono12Packed){
-		Image_Pool_8Bit *temp = (Image_Pool_8Bit *)imgBufPoolHandle;
+		Image_Pool_16Bit *temp = (Image_Pool_16Bit *)imgBufPoolHandle;
 		delete temp;
 	}
 	else{
-		Image_Pool_16Bit *temp = (Image_Pool_16Bit *)imgBufPoolHandle;
+		Image_Pool_8Bit *temp = (Image_Pool_8Bit *)imgBufPoolHandle;
 		delete temp;
 	}
 
@@ -311,7 +314,7 @@ bool Sony_Camera::_startAcquisition()
 #ifndef _IMAGECALLBACK_
 	XCCAM_ImageStart(hCamera);
 	hThread = (HANDLE)_beginthreadex(NULL, 0, &ImageAcquThread, this, CREATE_SUSPENDED, &threadID);
-	SetThreadPriority(hThread, THREAD_PRIORITY_BELOW_NORMAL);
+	// SetThreadPriority(hThread, THREAD_PRIORITY_BELOW_NORMAL);
 	ResumeThread(hThread);
 	Sleep(2);
 #else
@@ -330,7 +333,7 @@ bool Sony_Camera::_getImgBuf(UCHAR **pBuffer, int *pHeight, int *pWidth, int *pC
 
 	while (0 == poolHandle->QueueSize()){
 		ReleaseMutex(hMutex);
-		Sleep(100);
+		Sleep(10);
 		WaitForSingleObject(hMutex, INFINITE);
 	}
 
@@ -348,13 +351,22 @@ bool Sony_Camera::_getImgBuf(USHORT **pBuffer, int *pHeight, int *pWidth, int *p
 
 	while (0 == poolHandle->QueueSize()){
 		ReleaseMutex(hMutex);
-		WaitForSingleObject(hMutex, 5);
+		Sleep(10);
+		WaitForSingleObject(hMutex, INFINITE);
 	}
 
 	*pBuffer = poolHandle->PopFront();
 	*pHeight = m_height;
 	*pWidth = m_width;
 	*pChannels = m_channels;
+
+	return true;
+}
+
+bool Sony_Camera::_getImgInfo(int *pHeight, int *pWidth, int *pBitPerPixel){
+	*pHeight = m_height;
+	*pWidth = m_width;
+	*pBitPerPixel = m_bitPerPixel;
 
 	return true;
 }
