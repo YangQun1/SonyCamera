@@ -55,6 +55,8 @@
 
 下面是代码示例：
 
+本段在`SonyCamera`目录下的`main.cpp`文件中
+
 ``` c++
 #include "SonyCamera_Library.h"
 
@@ -120,6 +122,8 @@ int main()
 
 下面是代码示例：
 
+本代码在`python_test`目录下的`testSonyCamera.py`文件中
+
 ``` python
 import SonyCamera
 
@@ -155,3 +159,4 @@ if __name__ == "__main__":
 - XCG-CG相机模块支持12位图像数据的采集，但本接口目前只实现了8位图像的采集，并在代码中为12位图像采集功能的实现预留了相应的分支，用户可以自己完善，或者等待本程序的后续版本
 - 本接口程序将会继续完善
 - 本程序目前实现的功能均在XCG-CG510相机上测试通过
+- 本工程中还实现了一个简单的基于MFC的GUI程序，用于测试相机
