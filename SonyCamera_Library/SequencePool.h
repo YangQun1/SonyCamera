@@ -1,7 +1,11 @@
 #pragma once
 
 
+#include "stdafx.h"
+#include <XCCamAPI.h>
+
 #include <queue>
+
 
 using namespace std;
 
@@ -28,11 +32,13 @@ class Sequence_Pool
 {
 public:
 	Sequence_Pool(int singleBufferSize);
+	Sequence_Pool(HCAMERA hCamera);
 	~Sequence_Pool();
 
 	T*		ReqBuffer();	// 向缓冲区申请一块buffer，用于存储数据
-	T*		PopFront();		// 从队头取出一个元素，用于读取已经填写好的数据，同时队列大小减1
 	void	PushBack(T*);	// 向队尾插入一个元素，即将填写好的数据插入队尾，同时队列大小加1
+	T*		PopFront();		// 从队头取出一个元素，用于读取已经填写好的数据，同时队列大小减1
+	void	RetBuffer(T*);	// 将一块内存归还给缓冲区
 	bool	IsEmpty();		// 检查队列是否为空
 	int		QueueSize();	// 获取队列的大小
 
@@ -40,6 +46,8 @@ private:
 	queue<T*>	bufferQueue;				// 用于管理buffer
 	T*			bufferPool[Max_Buffer];		// 内存池
 	bool		bufferOccup[Max_Buffer];	// 内存池中的内存是否被占用标志
+
+	HANDLE		m_hCamera;
 };
 
 typedef Sequence_Pool<UCHAR>  Image_Pool_8Bit;
@@ -55,11 +63,31 @@ Sequence_Pool<T>::Sequence_Pool(int singleBufferSize)
 	}
 }
 
+template<>
+inline Sequence_Pool<XCCAM_IMAGE>::Sequence_Pool(HCAMERA hCamera)
+{
+	for (int i = 0; i < Max_Buffer; i++){
+		XCCAM_ImageAlloc(hCamera, &bufferPool[i]);
+		bufferOccup[i] = false;
+	}
+
+	m_hCamera = hCamera;
+}
+
 template <class T>
 Sequence_Pool<T>::~Sequence_Pool()
 {
 	for (int i = 0; i < Max_Buffer; i++){
 		delete[] bufferPool[i];
+		bufferOccup[i] = false;
+	}
+}
+
+template<>
+inline Sequence_Pool<XCCAM_IMAGE>::~Sequence_Pool()
+{
+	for (int i = 0; i < Max_Buffer; i++){
+		XCCAM_ImageFree(m_hCamera, bufferPool[i]);
 		bufferOccup[i] = false;
 	}
 }
@@ -76,39 +104,61 @@ T* Sequence_Pool<T>::PopFront()
 	T* temp = bufferQueue.front();
 	bufferQueue.pop();
 
+	return temp;
+}
+
+template <class T>
+void Sequence_Pool<T>::RetBuffer(T* element)
+{
 	// 将该元素放回内存池中
 	for (int i = 0; i < Max_Buffer; i++){
-		if (bufferPool[i] == temp){
+		if (bufferPool[i] == element){
 			bufferOccup[i] = false;
 			break;
 		}
 	}
 
-	return temp;
+	return;
 }
 
 template <class T>
 T* Sequence_Pool<T>::ReqBuffer()
 {
 	T *temp = NULL;
-	// 内存池未满
-	if (QueueSize() < Max_Buffer){
-		// 返回内存池中某个未被占用的buffer
-		for (int i = 0; i < Max_Buffer; i++){
-			if (bufferOccup[i] == false){
-				bufferOccup[i] = true;
-				temp = bufferPool[i];
-				break;
-			}
+
+	// 返回内存池中某个未被占用的buffer
+	for (int i = 0; i < Max_Buffer; i++){
+		if (bufferOccup[i] == false){
+			bufferOccup[i] = true;
+			temp = bufferPool[i];
+			break;
 		}
 	}
-	else{
+
+	if(temp == NULL){
 		temp = bufferQueue.front();	// 返回队首元素
 		bufferQueue.pop();			// 移除队首元素
 	}
 
 	return temp;
 }
+
+//template <class T>
+//T* Sequence_Pool<T>::ReqBuffer()
+//{
+//	T *temp = NULL;
+//
+//	// 返回内存池中某个未被占用的buffer
+//	for (int i = 0; i < Max_Buffer; i++){
+//		if (bufferOccup[i] == false){
+//			bufferOccup[i] = true;
+//			temp = bufferPool[i];
+//			break;
+//		}
+//	}
+//
+//	return temp;
+//}
 
 template <class T>
 void Sequence_Pool<T>::PushBack(T* element)

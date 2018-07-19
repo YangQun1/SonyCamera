@@ -20,7 +20,7 @@ public:
 	~Sony_Camera(){};
 
 	HANDLE			endEvent;			// 开始退出采集过程事件
-	HANDLE			rcvTermEvent;		// 采集线程已经退出事件
+	// HANDLE			rcvTermEvent;		// 采集线程已经退出事件
 	HCAMERA			hCamera;			// 相机句柄
 	XCCAM_IMAGE		*pImage;			// 相机图像句柄
 	HFEATURE		*hFeature;			// 相机特性句柄
@@ -30,8 +30,11 @@ public:
 	unsigned int	threadID;
 
 	// 图像缓冲区
-	void *imgBufPoolHandle;
+	// void *imgBufPoolHandle;
+	Sequence_Pool<XCCAM_IMAGE> *imgBufPoolHandle;
+
 	HANDLE hMutex;
+	CRITICAL_SECTION hCriticalSection;
 
 private:
 	// 图像的属性
@@ -47,8 +50,9 @@ public:
 	bool	_openCam();
 	bool	_closeCam();
 	bool	_startAcquisition();
-	bool	_getImgBuf(UCHAR **pBuffer, int *pHeight, int *pWidth, int *pChannels);
-	bool	_getImgBuf(USHORT **pBuffer, int *pHeight, int *pWidth, int *pChannels);
+	//bool	_getImgBuf(UCHAR **pBuffer, int *pHeight, int *pWidth, int *pChannels);
+	//bool	_getImgBuf(USHORT **pBuffer, int *pHeight, int *pWidth, int *pChannels);
+	bool	_getImgBuf(UCHAR *pBuffer);
 	bool	_getImgInfo(int *pHeight, int *pWidth, int *pBitPerPixel);
 };
 

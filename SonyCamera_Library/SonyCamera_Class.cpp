@@ -89,11 +89,13 @@ unsigned int __stdcall ImageAcquThread(LPVOID Countext)
 {
 	Sony_Camera *pMp = (Sony_Camera *)Countext;
 
-	LARGE_INTEGER li;
-	LONGLONG start, end, freq;
+	XCCAM_IMAGE *pImage;
 
-	QueryPerformanceFrequency(&li);
-	freq = li.QuadPart;
+	//LARGE_INTEGER li;
+	//LONGLONG start, end, freq;
+
+	//QueryPerformanceFrequency(&li);
+	//freq = li.QuadPart;
 
 	while (1){
 		// 请求退出采集图像事件句柄，若请求到，则退出采集过程
@@ -102,82 +104,104 @@ unsigned int __stdcall ImageAcquThread(LPVOID Countext)
 			break;
 		}
 
-		QueryPerformanceCounter(&li);
-		start = li.QuadPart;
+		//QueryPerformanceCounter(&li);
+		//start = li.QuadPart;
 
-		XCCAM_ImageReq(pMp->hCamera, pMp->pImage);				
-		XCCAM_ImageComplete(pMp->hCamera, pMp->pImage, -1, NULL);
+		EnterCriticalSection(&(pMp->hCriticalSection));
+		pImage = pMp->imgBufPoolHandle->ReqBuffer();
+		LeaveCriticalSection(&(pMp->hCriticalSection));
 
-		QueryPerformanceCounter(&li);
-		end = li.QuadPart;
-		int useTime = (int)((end - start) * 1000 / freq);
-		std::cout << "acqu time: " << useTime << "ms" << std::endl;
+		//XCCAM_ImageReq(pMp->hCamera, pMp->pImage);				
+		//XCCAM_ImageComplete(pMp->hCamera, pMp->pImage, -1, NULL);
 
-		WaitForSingleObject(pMp->hMutex, INFINITE);
+		XCCAM_ImageReq(pMp->hCamera, pImage);
+		XCCAM_ImageComplete(pMp->hCamera, pImage, -1, NULL);
 
-		if (pMp->dataType == BayerRG8){
-			Image_Pool_8Bit *poolHandle = (Image_Pool_8Bit *)(pMp->imgBufPoolHandle);
-			UCHAR *buffer = poolHandle->ReqBuffer();
-			// 使用相机API转为24bit的BMP彩图
-			XCCAM_ConvExec(pMp->hCamera, pMp->pImage, buffer);	
-			poolHandle->PushBack(buffer);
-		}
-		else if (pMp->dataType == Mono8){
-			Image_Pool_8Bit *poolHandle = (Image_Pool_8Bit *)(pMp->imgBufPoolHandle);
-			UCHAR *buffer = poolHandle->ReqBuffer();
-			// 直接拷贝内存
-			memcpy(buffer, pMp->pImage->pBuffer, pMp->pImage->Length);
-			poolHandle->PushBack(buffer);
-		}
-		else if (pMp->dataType == BayerRG12Packed){
-			Image_Pool_16Bit *poolHandle = (Image_Pool_16Bit *)(pMp->imgBufPoolHandle);
-			USHORT *buffer = poolHandle->ReqBuffer();
-			// TODO:将BayerRG12Packed转成BGR图像
-			poolHandle->PushBack(buffer);
-		}
-		else if (pMp->dataType == Mono12Packed){
-			Image_Pool_16Bit *poolHandle = (Image_Pool_16Bit *)(pMp->imgBufPoolHandle);
-			USHORT *buffer = poolHandle->ReqBuffer();
+		EnterCriticalSection(&(pMp->hCriticalSection));
+		pMp->imgBufPoolHandle->PushBack(pImage);
+		LeaveCriticalSection(&(pMp->hCriticalSection));
 
-			// 将Mono12Packed格式（一个像素占用1.5个字节）的图像
-			// 转换成Mono12格式（一个像素占用两个字节），方便后期处理
-			QueryPerformanceCounter(&li);
-			start = li.QuadPart;
-
-			unsigned long length = pMp->pImage->Length;
-			unsigned char *packedImgBuf = pMp->pImage->pBuffer;
-			for (int i = 0, j = 0; i < length; i += 3, j += 2){
-				buffer[j] = packedImgBuf[i] << 8 | ((packedImgBuf[i + 1] << 4) | 0xF0);
-				buffer[j + 1] = packedImgBuf[i + 2] << 8 | (packedImgBuf[i + 1] | 0xF0);
-			}
-
-			QueryPerformanceCounter(&li);
-			end = li.QuadPart;
-			int useTime = (int)((end - start) * 1000 / freq);
-			std::cout << "transform time: " << useTime << "ms" << std::endl;
-
-			poolHandle->PushBack(buffer);
-		}
-		else{
-			// TODO
-		}
-
-		ReleaseMutex(pMp->hMutex);
+		//QueryPerformanceCounter(&li);
+		//end = li.QuadPart;
+		//int useTime = (int)((end - start) * 1000 / freq);
+		//std::cout << "acqu time: " << useTime << "ms" << std::endl;
 	}
-
-	// 设置采集终止事件，表示采集进程终止
-	// SetEvent(pMp->m_RcvTermEvent);
 
 	_endthreadex(0);
 	return 0;
 }
+
+//unsigned int __stdcall ImageAcquThread(LPVOID Countext)
+//{
+//	Sony_Camera *pMp = (Sony_Camera *)Countext;
+//
+//	XCCAM_IMAGE *pImage[Max_Buffer];
+//
+//	LARGE_INTEGER li;
+//	LONGLONG start, end, freq;
+//
+//	QueryPerformanceFrequency(&li);
+//	freq = li.QuadPart;
+//
+//	EnterCriticalSection(&(pMp->hCriticalSection));
+//	for (int i = 0; i < Max_Buffer; i++){
+//		pImage[i] = pMp->imgBufPoolHandle->ReqBuffer();
+//	}
+//	LeaveCriticalSection(&(pMp->hCriticalSection));
+//
+//	for (int i = 0; i < Max_Buffer; i++){
+//		XCCAM_ImageReq(pMp->hCamera, pImage[i]);
+//	}
+//
+//	int i = 0;
+//	while (1){
+//		// 请求退出采集图像事件句柄，若请求到，则退出采集过程
+//		if (WaitForSingleObject(pMp->endEvent, 0) == WAIT_OBJECT_0){
+//			ResetEvent(pMp->endEvent);
+//			break;
+//		}
+//
+//		QueryPerformanceCounter(&li);
+//		start = li.QuadPart;
+//
+//		XCCAM_ImageComplete(pMp->hCamera, pImage[i], -1, NULL);
+//
+//		EnterCriticalSection(&(pMp->hCriticalSection));
+//		pMp->imgBufPoolHandle->PushBack(pImage[i]);
+//		LeaveCriticalSection(&(pMp->hCriticalSection));
+//
+//		while (1){
+//			EnterCriticalSection(&(pMp->hCriticalSection));
+//			if (pImage[i] = pMp->imgBufPoolHandle->ReqBuffer()){
+//
+//				LeaveCriticalSection(&(pMp->hCriticalSection));
+//				break;
+//			}
+//			LeaveCriticalSection(&(pMp->hCriticalSection));
+//			Sleep(1);
+//		}
+//		XCCAM_ImageReq(pMp->hCamera, pImage[i]);
+//
+//		i++;
+//		if (i >= Max_Buffer)
+//			i = 0;
+//
+//		QueryPerformanceCounter(&li);
+//		end = li.QuadPart;
+//		int useTime = (int)((end - start) * 1000 / freq);
+//		std::cout << "acqu time: " << useTime << "ms" << std::endl;
+//	}
+//
+//	_endthreadex(0);
+//	return 0;
+//}
 #endif
 
 
 bool Sony_Camera::_openCam()
 {
 	endEvent = CreateEvent(NULL, true, false, NULL);
-	rcvTermEvent = CreateEvent(NULL, true, false, NULL);
+	// rcvTermEvent = CreateEvent(NULL, true, false, NULL);
 
 	XCCAM_SetStructVersion(XCCAM_LIBRARY_STRUCT_VERSION);
 	XCCAM_SetCallBack(NULL, SystemFunc);
@@ -186,7 +210,7 @@ bool Sony_Camera::_openCam()
 	if (!XCCAM_Open(NULL, &hCamera))
 	{
 		CloseHandle(endEvent);
-		CloseHandle(rcvTermEvent);
+		// CloseHandle(rcvTermEvent);
 		return false;
 	}
 
@@ -194,20 +218,20 @@ bool Sony_Camera::_openCam()
 	if (!XCCAM_ResourceAlloc(hCamera))
 	{
 		CloseHandle(endEvent);
-		CloseHandle(rcvTermEvent);
+		// CloseHandle(rcvTermEvent);
 		XCCAM_Close(hCamera);
 		hCamera = 0;
 		return false;
 	}
 
 	// 为获取的图像申请内存空间
-	XCCAM_ImageAlloc(hCamera, &pImage);
+	//XCCAM_ImageAlloc(hCamera, &pImage);
 
 	// 获取相机特性句柄
 	if (!XCCAM_GetFeatureHandle(hCamera, (HNodeMap*)&hFeature))
 	{
 		CloseHandle(endEvent);
-		CloseHandle(rcvTermEvent);
+		// CloseHandle(rcvTermEvent);
 		XCCAM_Close(hCamera);
 		hCamera = 0;
 		return false;
@@ -241,7 +265,6 @@ bool Sony_Camera::_openCam()
 	XCCAM_GetFeatureInteger(hFeature, "Height", &m_height, FALSE);
 	XCCAM_GetFeatureInteger(hFeature, "Width", &m_width, FALSE);
 
-
 	if (dataType == BayerRG8){
 		// 设置颜色转换模式
 		XCCAM_COLORCONVMODE Mode = {};
@@ -251,29 +274,19 @@ bool Sony_Camera::_openCam()
 		if (!XCCAM_SetConvMode(hCamera, &Mode, NULL))
 		{
 			CloseHandle(endEvent);
-			CloseHandle(rcvTermEvent);
+			// CloseHandle(rcvTermEvent);
 			XCCAM_Close(hCamera);
 			hCamera = 0;
 			return false;
 		}
+	}
 
-		// 为内存池申请空间，用于存放转换后的图像
-		imgBufPoolHandle = new Image_Pool_8Bit((int)(m_height*m_width*m_channels));
-	}
-	else if (dataType == Mono8){
-		imgBufPoolHandle = new Image_Pool_8Bit((int)(m_height*m_width*m_channels));
-	}
-	else if (dataType == BayerRG12Packed){
-		imgBufPoolHandle = new Image_Pool_16Bit((int)(m_height*m_width*m_channels));
-	}
-	else if (dataType == Mono12Packed){
-		imgBufPoolHandle = new Image_Pool_16Bit((int)(m_height*m_width*m_channels));
-	}
-	else{
-		return false;
-	}
+	// 为内存池申请空间，用于存放转换后的图像
+	imgBufPoolHandle = new Sequence_Pool<XCCAM_IMAGE>(hCamera);
+
 
 	hMutex = CreateMutex(NULL, FALSE, _T("ImgBufPoolMutex"));
+	InitializeCriticalSection(&hCriticalSection);
 
 	isStarted = false;
 	isOpened = true;
@@ -301,21 +314,10 @@ bool Sony_Camera::_closeCam()
 	}
 
 	// 释放相关资源
+	delete imgBufPoolHandle;
 	XCCAM_ResourceRelease(hCamera);
-	XCCAM_ImageFreeAll(hCamera);
 	XCCAM_Close(hCamera);
 	CloseHandle(endEvent);
-	CloseHandle(rcvTermEvent);
-
-	// 释放内存池
-	if (dataType == BayerRG12Packed || dataType == Mono12Packed){
-		Image_Pool_16Bit *temp = (Image_Pool_16Bit *)imgBufPoolHandle;
-		delete temp;
-	}
-	else{
-		Image_Pool_8Bit *temp = (Image_Pool_8Bit *)imgBufPoolHandle;
-		delete temp;
-	}
 
 	return true;
 }
@@ -334,7 +336,6 @@ bool Sony_Camera::_startAcquisition()
 #ifndef _IMAGECALLBACK_
 	XCCAM_ImageStart(hCamera);
 	hThread = (HANDLE)_beginthreadex(NULL, 0, &ImageAcquThread, this, CREATE_SUSPENDED, &threadID);
-	// SetThreadPriority(hThread, THREAD_PRIORITY_BELOW_NORMAL);
 	ResumeThread(hThread);
 	Sleep(2);
 #else
@@ -347,38 +348,51 @@ bool Sony_Camera::_startAcquisition()
 }
 
 
-bool Sony_Camera::_getImgBuf(UCHAR **pBuffer, int *pHeight, int *pWidth, int *pChannels)
+bool Sony_Camera::_getImgBuf(UCHAR *pBuffer)
 {
-	Image_Pool_8Bit *poolHandle = (Image_Pool_8Bit *)imgBufPoolHandle;
+	XCCAM_IMAGE *pImage = NULL;
 
-	while (0 == poolHandle->QueueSize()){
-		ReleaseMutex(hMutex);
-		Sleep(10);
-		WaitForSingleObject(hMutex, INFINITE);
+	// 从队列中取出一块已经填充好的缓冲内存
+	while (1){
+		EnterCriticalSection(&(hCriticalSection));
+		if (pImage = imgBufPoolHandle->PopFront()){
+			// pImage = imgBufPoolHandle->PopFront();
+			LeaveCriticalSection(&(hCriticalSection));
+			break;
+		}
+		LeaveCriticalSection(&(hCriticalSection));
+		Sleep(1);
 	}
 
-	*pBuffer = poolHandle->PopFront();
-	*pHeight = m_height;
-	*pWidth = m_width;
-	*pChannels = m_channels;
-
-	return true;
-}
-
-bool Sony_Camera::_getImgBuf(USHORT **pBuffer, int *pHeight, int *pWidth, int *pChannels)
-{
-	Image_Pool_16Bit *poolHandle = (Image_Pool_16Bit *)imgBufPoolHandle;
-
-	while (0 == poolHandle->QueueSize()){
-		ReleaseMutex(hMutex);
-		Sleep(10);
-		WaitForSingleObject(hMutex, INFINITE);
+	// 转换并填充到用户图像内存
+	if (dataType == BayerRG8){
+		XCCAM_ConvExec(hCamera, pImage, pBuffer);
+	}
+	else if ( dataType == Mono8){
+		memcpy(pBuffer, pImage->pBuffer, pImage->Length);
+	}
+	else if ( dataType == BayerRG12Packed){
+		// TODO:将BayerRG12Packed转成BGR图像
+	}
+	else if ( dataType == Mono12Packed){
+		// 将Mono12Packed格式（一个像素占用1.5个字节）的图像
+		// 转换成Mono12格式（一个像素占用两个字节），方便后期处理
+		unsigned long length =  pImage->Length;
+		unsigned char *packedImgBuf =  pImage->pBuffer;
+		USHORT *buffer = (USHORT *)pBuffer;
+		for (int i = 0, j = 0; i < length; i += 3, j += 2){
+			buffer[j] = packedImgBuf[i] << 8 | ((packedImgBuf[i + 1] << 4) | 0xF0);
+			buffer[j + 1] = packedImgBuf[i + 2] << 8 | (packedImgBuf[i + 1] | 0xF0);
+		}
+	}
+	else{
+		// TODO
 	}
 
-	*pBuffer = poolHandle->PopFront();
-	*pHeight = m_height;
-	*pWidth = m_width;
-	*pChannels = m_channels;
+	// 将缓冲内存归还给内存池
+	EnterCriticalSection(&hCriticalSection);
+	imgBufPoolHandle->RetBuffer(pImage);
+	LeaveCriticalSection(&hCriticalSection);
 
 	return true;
 }

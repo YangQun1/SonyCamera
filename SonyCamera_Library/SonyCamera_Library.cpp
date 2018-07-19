@@ -78,38 +78,10 @@ bool StartImageAcquisition()
 	return true;
 }
 
-// 获取图像接口
-// 将内存池中的图像数据拷贝到接口图像内存中
-// 拷贝过程需要加锁，防止图像接收线程改变内存池中的数据
+
 cv::Mat& GetImage()
 {
-	// 请求互斥锁
-	WaitForSingleObject(g_CameraHandle->hMutex, INFINITE);
-
-	if (g_CameraHandle->dataType == Mono8 || \
-		g_CameraHandle->dataType == BayerRG8){
-		UCHAR *imgBuf = NULL;
-		int height, width, channels;
-
-		g_CameraHandle->_getImgBuf(&imgBuf, &height, &width, &channels);
-
-		memcpy(mat.data, imgBuf, height*width*channels);
-	}
-	else if (g_CameraHandle->dataType == Mono12Packed || \
-		g_CameraHandle->dataType == BayerRG12Packed){
-		USHORT *imgBuf = NULL;
-		int height, width, channels;
-
-		g_CameraHandle->_getImgBuf(&imgBuf, &height, &width, &channels);
-
-		memcpy(mat.data, imgBuf, height*width*channels*sizeof(USHORT));
-	}
-	else{
-		//TODO
-	}
-
-	// 释放互斥锁
-	ReleaseMutex(g_CameraHandle->hMutex);
+	g_CameraHandle->_getImgBuf(mat.data);
 
 	return mat;
 }
@@ -124,6 +96,7 @@ cv::Mat& GetImage()
 
 UCHAR*  g_Buffer_BYTE = NULL;
 USHORT* g_Buffer_SHORT = NULL;
+int height, width, channels;
 
 static PyObject * OpenCamera_Py(PyObject *self, PyObject *args)
 {
@@ -138,14 +111,16 @@ static PyObject * OpenCamera_Py(PyObject *self, PyObject *args)
 	cout << "Sony Camera Opened" << endl;
 
 	// 为待处理图像申请内存
-	int height, width, bitPerPixel;
+	int bitPerPixel;
 	g_CameraHandle->_getImgInfo(&height, &width, &bitPerPixel);
 
 	if (bitPerPixel == 8 || bitPerPixel == 24){
 		g_Buffer_BYTE = new UCHAR[height*width*bitPerPixel / 8];
+		channels = bitPerPixel / 8;
 	}
 	else if (bitPerPixel == 16 || bitPerPixel == 48){
 		g_Buffer_SHORT = new USHORT[height*width*bitPerPixel / 16];
+		channels = bitPerPixel / 16;
 	}
 
 
@@ -181,19 +156,12 @@ static PyObject * StartImageAcquisition_Py(PyObject *self, PyObject *args)
 
 static PyObject * GetImage_Py(PyObject *self, PyObject *args)
 {
-	// 请求互斥锁
-	WaitForSingleObject(g_CameraHandle->hMutex, INFINITE);
-
 	PyObject *PyArray = Py_None;
 
 	if (g_CameraHandle->dataType == Mono8 || \
 		g_CameraHandle->dataType == BayerRG8){
-		UCHAR *imgBuf = NULL;
-		int height, width, channels;
 
-		g_CameraHandle->_getImgBuf(&imgBuf, &height, &width, &channels);
-
-		memcpy(g_Buffer_BYTE, imgBuf, height*width*channels);
+		g_CameraHandle->_getImgBuf(g_Buffer_BYTE);
 
 		npy_intp *Dims = NULL;
 		int dims;
@@ -220,12 +188,8 @@ static PyObject * GetImage_Py(PyObject *self, PyObject *args)
 	}
 	else if (g_CameraHandle->dataType == Mono12Packed || \
 		g_CameraHandle->dataType == BayerRG12Packed){
-		USHORT *imgBuf = NULL;
-		int height, width, channels;
 
-		g_CameraHandle->_getImgBuf(&imgBuf, &height, &width, &channels);
-
-		memcpy(g_Buffer_SHORT, imgBuf, height*width*channels*sizeof(USHORT));
+		g_CameraHandle->_getImgBuf((UCHAR *)g_Buffer_SHORT);
 
 		npy_intp *Dims = NULL;
 		int dims;
@@ -253,9 +217,6 @@ static PyObject * GetImage_Py(PyObject *self, PyObject *args)
 	else{
 		//TODO
 	}
-
-	// 释放互斥锁
-	ReleaseMutex(g_CameraHandle->hMutex);
 
 	return PyArray;
 }

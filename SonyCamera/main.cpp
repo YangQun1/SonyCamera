@@ -10,7 +10,9 @@
 int main()
 {
 	cv::Mat img;
+	cv::Mat img_covert;
 
+	double alpha = (double)255 / 0xFFFF;
 
 	LARGE_INTEGER li;
 	LONGLONG start, end, freq;
@@ -32,22 +34,22 @@ int main()
 
 		img = GetImage();
 
-		QueryPerformanceCounter(&li);
-		end = li.QuadPart;
-		int useTime = (int)((end - start) * 1000 / freq);
-		std::cout << "time: " << useTime << "ms" << std::endl;
+		//std::ostringstream filename;
+		//filename << "E:\\VSProject\\SonyCamera\\image\\" << j << ".png";
+		//cv::imwrite(filename.str(), img);
 
-		std::ostringstream filename;
-		filename << "E:\\VSProject\\SonyCamera\\image\\" << j << ".png";
-		cv::imwrite(filename.str(), img);
 		cv::imshow("Image", img);
-		key = cv::waitKey(20);
-		//int i = 50000000;
-		//while (i--);
+		key = cv::waitKey(5);
+
 		j++;
 		std::cout << j <<std::endl;
 		if (key == 'q')
 			break;
+
+		QueryPerformanceCounter(&li);
+		end = li.QuadPart;
+		int useTime = (int)((end - start) * 1000 / freq);
+		std::cout << "get time: " << useTime << "ms" << std::endl;
 	}
 
 	cv::destroyAllWindows();
