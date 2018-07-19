@@ -6,7 +6,7 @@ DLL的对外接口
 
 
 #define _C_CPP_INTERFACE_
-#define _PYTHON_INTERFACE_
+//#define _PYTHON_INTERFACE_
 
 #ifdef _C_CPP_INTERFACE_
 
@@ -17,7 +17,7 @@ DLL的对外接口
 EXPORT bool OpenCamera();
 EXPORT bool CloseCamera();
 EXPORT bool StartImageAcquisition();
-EXPORT cv::Mat GetImage();
+EXPORT cv::Mat& GetImage();
 
 #endif
 

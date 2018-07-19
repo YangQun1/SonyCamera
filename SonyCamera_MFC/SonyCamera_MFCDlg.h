@@ -9,6 +9,18 @@
 #include <opencv2\core\core.hpp>
 #include <opencv2\highgui\highgui.hpp>
 
+#include "SetCameraDlg.h"
+
+enum CAMERA_STATE{
+	CAMERA_CLOSED,
+	CAMERA_OPENED
+};
+
+enum CAMERA_STAGE{
+	CAMERA_SHUTDOWN,
+	CAMERA_BOOTED
+};
+
 // CSonyCamera_MFCDlg 对话框
 class CSonyCamera_MFCDlg : public CDialogEx
 {
@@ -33,8 +45,6 @@ protected:
 	afx_msg void OnPaint();
 	afx_msg HCURSOR OnQueryDragIcon();
 	DECLARE_MESSAGE_MAP()
-
-	// 操作相机相关的函数
 	
 public:
 	HANDLE m_EndEvent;			// 退出采集事件句柄
@@ -49,10 +59,19 @@ public:
 
 	BOOL isShowingImage;
 
+	CAMERA_STATE cameraState;
+	CAMERA_STAGE cameraStage;
+	BOOL isBooting;
+
+	CSetCameraDlg setCameraDlg;
+
 public:
 	afx_msg void OnBnClickedButtonOpencam();
 	afx_msg void OnBnClickedButtonShowimg();
 	afx_msg void OnBnClickedButtonStopshowimg();
 	afx_msg void OnBnClickedButtonClosecam();
 	afx_msg void OnBnClickedButtonTrigger();
+	afx_msg void OnBnClickedButtonShowedge();
+	afx_msg void OnBnClickedButton12bitmode();
+	afx_msg void OnBnClickedButtonSetcamera();
 };

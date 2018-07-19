@@ -5,10 +5,12 @@
 
 #include <Windows.h>
 #include <iostream>
+#include <sstream>
 
 int main()
 {
 	cv::Mat img;
+
 
 	LARGE_INTEGER li;
 	LONGLONG start, end, freq;
@@ -35,6 +37,9 @@ int main()
 		int useTime = (int)((end - start) * 1000 / freq);
 		std::cout << "time: " << useTime << "ms" << std::endl;
 
+		std::ostringstream filename;
+		filename << "E:\\VSProject\\SonyCamera\\image\\" << j << ".png";
+		cv::imwrite(filename.str(), img);
 		cv::imshow("Image", img);
 		key = cv::waitKey(20);
 		//int i = 50000000;

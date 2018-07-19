@@ -63,8 +63,16 @@ VOID  CALLBACK ImageDataRcv(HCAMERA hCamera,
 	else if (pMp->dataType == Mono12Packed){
 		Image_Pool_16Bit *poolHandle = (Image_Pool_16Bit *)(pMp->imgBufPoolHandle);
 		USHORT *buffer = poolHandle->ReqBuffer();
-		// 直接拷贝内存
-		memcpy(buffer, pImage->pBuffer, pImage->Length);
+
+		// 将Mono12Packed格式（一个像素占用1.5个字节）的图像
+		// 转换成Mono格式（一个像素占用两个字节），方便后期处理
+		unsigned long length = pMp->pImage->Length;
+		unsigned char *packedImgBuf = pMp->pImage->pBuffer;
+		for (int i = 0, j = 0; i < length; i += 3, j += 2){
+			buffer[j] = packedImgBuf[i] << 8 | ((packedImgBuf[i + 1] << 4) | 0xF0);
+			buffer[j + 1] = packedImgBuf[i + 2] << 8 | (packedImgBuf[i + 1] | 0xF0);
+		}
+		
 		poolHandle->PushBack(buffer);
 	}
 	else{
@@ -81,11 +89,11 @@ unsigned int __stdcall ImageAcquThread(LPVOID Countext)
 {
 	Sony_Camera *pMp = (Sony_Camera *)Countext;
 
-	//LARGE_INTEGER li;
-	//LONGLONG start, end, freq;
+	LARGE_INTEGER li;
+	LONGLONG start, end, freq;
 
-	//QueryPerformanceFrequency(&li);
-	//freq = li.QuadPart;
+	QueryPerformanceFrequency(&li);
+	freq = li.QuadPart;
 
 	while (1){
 		// 请求退出采集图像事件句柄，若请求到，则退出采集过程
@@ -94,16 +102,16 @@ unsigned int __stdcall ImageAcquThread(LPVOID Countext)
 			break;
 		}
 
-		//QueryPerformanceCounter(&li);
-		//start = li.QuadPart;
+		QueryPerformanceCounter(&li);
+		start = li.QuadPart;
 
 		XCCAM_ImageReq(pMp->hCamera, pMp->pImage);				
 		XCCAM_ImageComplete(pMp->hCamera, pMp->pImage, -1, NULL);
 
-		//QueryPerformanceCounter(&li);
-		//end = li.QuadPart;
-		//int useTime = (int)((end - start) * 1000 / freq);
-		//std::cout << "acqu time: " << useTime << "ms" << std::endl;
+		QueryPerformanceCounter(&li);
+		end = li.QuadPart;
+		int useTime = (int)((end - start) * 1000 / freq);
+		std::cout << "acqu time: " << useTime << "ms" << std::endl;
 
 		WaitForSingleObject(pMp->hMutex, INFINITE);
 
@@ -124,16 +132,30 @@ unsigned int __stdcall ImageAcquThread(LPVOID Countext)
 		else if (pMp->dataType == BayerRG12Packed){
 			Image_Pool_16Bit *poolHandle = (Image_Pool_16Bit *)(pMp->imgBufPoolHandle);
 			USHORT *buffer = poolHandle->ReqBuffer();
-			// 将12位的bayer转为12位三通道的rgb图像
-			// memcpy(buffer, pMp->pImage->pBuffer, pMp->pImage->Length);
-			// TODO
+			// TODO:将BayerRG12Packed转成BGR图像
 			poolHandle->PushBack(buffer);
 		}
 		else if (pMp->dataType == Mono12Packed){
 			Image_Pool_16Bit *poolHandle = (Image_Pool_16Bit *)(pMp->imgBufPoolHandle);
 			USHORT *buffer = poolHandle->ReqBuffer();
-			// 直接拷贝内存
-			memcpy(buffer, pMp->pImage->pBuffer, pMp->pImage->Length);
+
+			// 将Mono12Packed格式（一个像素占用1.5个字节）的图像
+			// 转换成Mono12格式（一个像素占用两个字节），方便后期处理
+			QueryPerformanceCounter(&li);
+			start = li.QuadPart;
+
+			unsigned long length = pMp->pImage->Length;
+			unsigned char *packedImgBuf = pMp->pImage->pBuffer;
+			for (int i = 0, j = 0; i < length; i += 3, j += 2){
+				buffer[j] = packedImgBuf[i] << 8 | ((packedImgBuf[i + 1] << 4) | 0xF0);
+				buffer[j + 1] = packedImgBuf[i + 2] << 8 | (packedImgBuf[i + 1] | 0xF0);
+			}
+
+			QueryPerformanceCounter(&li);
+			end = li.QuadPart;
+			int useTime = (int)((end - start) * 1000 / freq);
+			std::cout << "transform time: " << useTime << "ms" << std::endl;
+
 			poolHandle->PushBack(buffer);
 		}
 		else{
@@ -261,20 +283,18 @@ bool Sony_Camera::_openCam()
 
 bool Sony_Camera::_closeCam()
 {
-	if (isOpened = false){
+	if (isOpened == false){
 		return false;
 	}
 
 	if (isStarted == true){
 #ifdef _IMAGECALLBACK_
-		XCCAM_ImageStop(hCamera);
 		XCCAM_SetImageCallBack(hCamera, NULL, NULL, 0, FALSE);
+		XCCAM_ImageStop(hCamera);
 #else
 		SetEvent(endEvent);
-		XCCAM_ImageReqAbortAll(hCamera);
-		// WaitForSingleObject(m_RcvTermEvent, INFINITE);
 		WaitForSingleObject(hThread, INFINITE);
-		// ResetEvent(rcvTermEvent);
+		XCCAM_ImageReqAbortAll(hCamera);
 		XCCAM_ImageStop(hCamera);
 		CloseHandle(hThread);
 #endif

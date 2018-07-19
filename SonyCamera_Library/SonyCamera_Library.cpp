@@ -20,6 +20,8 @@ static Sony_Camera_Handle g_CameraHandle;
 #include <opencv2\core\core.hpp>
 #include <opencv2\highgui\highgui.hpp>
 
+cv::Mat mat;
+
 bool OpenCamera()
 {
 	bool ret;
@@ -29,14 +31,43 @@ bool OpenCamera()
 		cout << "Sony Camera Open Failed" << endl;
 		return false;
 	}
-	cout << "Sony Camera Opened" << endl;
-	return true;
+	
+
+	int height, width, bitPerPixel;
+	g_CameraHandle->_getImgInfo(&height, &width, &bitPerPixel);
+
+	if (bitPerPixel == 8){
+		mat.create(height, width, CV_8UC1);
+	}
+	else if (bitPerPixel == 24){
+		mat.create(height, width, CV_8UC3);
+	}
+	else if (bitPerPixel == 16){
+		mat.create(height, width, CV_16UC1);
+	}
+	else{
+		mat.create(height, width, CV_16UC3);
+	}
+
+	if (mat.isContinuous()){
+		cout << "Sony Camera Opened" << endl;
+		return true;
+	}
+
+	mat.release();
+	cout << "ERROR: Mat Is Not Continuous" << endl;
+	return false;
 }
 
 bool CloseCamera()
 {
 	g_CameraHandle->_closeCam(); 
 	delete g_CameraHandle;
+	
+	if (!mat.empty()){
+		mat.release();
+	}
+
 	return true;
 }
 
@@ -50,10 +81,8 @@ bool StartImageAcquisition()
 // 获取图像接口
 // 将内存池中的图像数据拷贝到接口图像内存中
 // 拷贝过程需要加锁，防止图像接收线程改变内存池中的数据
-cv::Mat GetImage()
+cv::Mat& GetImage()
 {
-	cv::Mat mat;
-
 	// 请求互斥锁
 	WaitForSingleObject(g_CameraHandle->hMutex, INFINITE);
 
@@ -64,34 +93,16 @@ cv::Mat GetImage()
 
 		g_CameraHandle->_getImgBuf(&imgBuf, &height, &width, &channels);
 
-		if (channels == 1){
-			mat.create(height, width, CV_8UC1);
-		}
-		else{
-			mat.create(height, width, CV_8UC3);
-		}
-
-		if (mat.isContinuous()){
-			memcpy(mat.data, imgBuf, height*width*channels);
-		}
+		memcpy(mat.data, imgBuf, height*width*channels);
 	}
 	else if (g_CameraHandle->dataType == Mono12Packed || \
-			g_CameraHandle->dataType == BayerRG12Packed){
+		g_CameraHandle->dataType == BayerRG12Packed){
 		USHORT *imgBuf = NULL;
 		int height, width, channels;
 
 		g_CameraHandle->_getImgBuf(&imgBuf, &height, &width, &channels);
 
-		if (channels == 1){
-			mat.create(height, width, CV_16UC1);
-		}
-		else{
-			mat.create(height, width, CV_16UC3);
-		}
-
-		if (mat.isContinuous()){
-			memcpy(mat.data, imgBuf, height*width*channels*sizeof(USHORT));
-		}
+		memcpy(mat.data, imgBuf, height*width*channels*sizeof(USHORT));
 	}
 	else{
 		//TODO
