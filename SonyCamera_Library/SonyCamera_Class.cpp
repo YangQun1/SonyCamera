@@ -141,10 +141,10 @@ unsigned int __stdcall ImageAcquThread(LPVOID Countext)
 
 	std::queue<XCCAM_IMAGE *> acqusitQueue;
 
-	LARGE_INTEGER li;
-	LONGLONG start, end, freq;
-	QueryPerformanceFrequency(&li);
-	freq = li.QuadPart;
+	//LARGE_INTEGER li;
+	//LONGLONG start, end, freq;
+	//QueryPerformanceFrequency(&li);
+	//freq = li.QuadPart;
 
 	// 将所有空闲内存段都启动图像采集
 	EnterCriticalSection(&(pMp->hCriticalSection));
@@ -163,8 +163,8 @@ unsigned int __stdcall ImageAcquThread(LPVOID Countext)
 			break;
 		}
 
-		QueryPerformanceCounter(&li);
-		start = li.QuadPart;
+		//QueryPerformanceCounter(&li);
+		//start = li.QuadPart;
 
 		// 申请一块空闲内存段
 		EnterCriticalSection(&(pMp->hCriticalSection));
@@ -200,10 +200,10 @@ unsigned int __stdcall ImageAcquThread(LPVOID Countext)
 			LeaveCriticalSection(&(pMp->hCriticalSection));
 
 
-			QueryPerformanceCounter(&li);
-			end = li.QuadPart;
-			int useTime = (int)((end - start) * 1000 / freq);
-			std::cout << "acqu time: " << useTime << "ms" << std::endl;
+			//QueryPerformanceCounter(&li);
+			//end = li.QuadPart;
+			//int useTime = (int)((end - start) * 1000 / freq);
+			//std::cout << "acqu time: " << useTime << "ms" << std::endl;
 		}
 
 	}
