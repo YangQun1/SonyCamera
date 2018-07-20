@@ -38,6 +38,11 @@ int main()
 		//filename << "E:\\VSProject\\SonyCamera\\image\\" << j << ".png";
 		//cv::imwrite(filename.str(), img);
 
+		QueryPerformanceCounter(&li);
+		end = li.QuadPart;
+		int useTime = (int)((end - start) * 1000 / freq);
+		std::cout << "get time: " << useTime << "ms" << std::endl;
+
 		cv::imshow("Image", img);
 		key = cv::waitKey(5);
 
@@ -46,10 +51,7 @@ int main()
 		if (key == 'q')
 			break;
 
-		QueryPerformanceCounter(&li);
-		end = li.QuadPart;
-		int useTime = (int)((end - start) * 1000 / freq);
-		std::cout << "get time: " << useTime << "ms" << std::endl;
+
 	}
 
 	cv::destroyAllWindows();
