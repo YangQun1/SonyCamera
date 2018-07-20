@@ -111,9 +111,6 @@ unsigned int __stdcall ImageAcquThread(LPVOID Countext)
 		pImage = pMp->imgBufPoolHandle->ReqBuffer();
 		LeaveCriticalSection(&(pMp->hCriticalSection));
 
-		//XCCAM_ImageReq(pMp->hCamera, pMp->pImage);				
-		//XCCAM_ImageComplete(pMp->hCamera, pMp->pImage, -1, NULL);
-
 		XCCAM_ImageReq(pMp->hCamera, pImage);
 		XCCAM_ImageComplete(pMp->hCamera, pImage, -1, NULL);
 
@@ -130,71 +127,6 @@ unsigned int __stdcall ImageAcquThread(LPVOID Countext)
 	_endthreadex(0);
 	return 0;
 }
-
-//unsigned int __stdcall ImageAcquThread(LPVOID Countext)
-//{
-//	Sony_Camera *pMp = (Sony_Camera *)Countext;
-//
-//	XCCAM_IMAGE *pImage[Max_Buffer];
-//
-//	LARGE_INTEGER li;
-//	LONGLONG start, end, freq;
-//
-//	QueryPerformanceFrequency(&li);
-//	freq = li.QuadPart;
-//
-//	EnterCriticalSection(&(pMp->hCriticalSection));
-//	for (int i = 0; i < Max_Buffer; i++){
-//		pImage[i] = pMp->imgBufPoolHandle->ReqBuffer();
-//	}
-//	LeaveCriticalSection(&(pMp->hCriticalSection));
-//
-//	for (int i = 0; i < Max_Buffer; i++){
-//		XCCAM_ImageReq(pMp->hCamera, pImage[i]);
-//	}
-//
-//	int i = 0;
-//	while (1){
-//		// 请求退出采集图像事件句柄，若请求到，则退出采集过程
-//		if (WaitForSingleObject(pMp->endEvent, 0) == WAIT_OBJECT_0){
-//			ResetEvent(pMp->endEvent);
-//			break;
-//		}
-//
-//		QueryPerformanceCounter(&li);
-//		start = li.QuadPart;
-//
-//		XCCAM_ImageComplete(pMp->hCamera, pImage[i], -1, NULL);
-//
-//		EnterCriticalSection(&(pMp->hCriticalSection));
-//		pMp->imgBufPoolHandle->PushBack(pImage[i]);
-//		LeaveCriticalSection(&(pMp->hCriticalSection));
-//
-//		while (1){
-//			EnterCriticalSection(&(pMp->hCriticalSection));
-//			if (pImage[i] = pMp->imgBufPoolHandle->ReqBuffer()){
-//
-//				LeaveCriticalSection(&(pMp->hCriticalSection));
-//				break;
-//			}
-//			LeaveCriticalSection(&(pMp->hCriticalSection));
-//			Sleep(1);
-//		}
-//		XCCAM_ImageReq(pMp->hCamera, pImage[i]);
-//
-//		i++;
-//		if (i >= Max_Buffer)
-//			i = 0;
-//
-//		QueryPerformanceCounter(&li);
-//		end = li.QuadPart;
-//		int useTime = (int)((end - start) * 1000 / freq);
-//		std::cout << "acqu time: " << useTime << "ms" << std::endl;
-//	}
-//
-//	_endthreadex(0);
-//	return 0;
-//}
 #endif
 
 
@@ -223,9 +155,6 @@ bool Sony_Camera::_openCam()
 		hCamera = 0;
 		return false;
 	}
-
-	// 为获取的图像申请内存空间
-	//XCCAM_ImageAlloc(hCamera, &pImage);
 
 	// 获取相机特性句柄
 	if (!XCCAM_GetFeatureHandle(hCamera, (HNodeMap*)&hFeature))

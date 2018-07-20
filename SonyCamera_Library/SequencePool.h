@@ -143,22 +143,6 @@ T* Sequence_Pool<T>::ReqBuffer()
 	return temp;
 }
 
-//template <class T>
-//T* Sequence_Pool<T>::ReqBuffer()
-//{
-//	T *temp = NULL;
-//
-//	// 返回内存池中某个未被占用的buffer
-//	for (int i = 0; i < Max_Buffer; i++){
-//		if (bufferOccup[i] == false){
-//			bufferOccup[i] = true;
-//			temp = bufferPool[i];
-//			break;
-//		}
-//	}
-//
-//	return temp;
-//}
 
 template <class T>
 void Sequence_Pool<T>::PushBack(T* element)
