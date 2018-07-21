@@ -32,7 +32,7 @@ int main()
 	cvResizeWindow("Image", 1224, 1024);
 	int j = 0;
 	while (1){
-		TriggerShooting();
+		// TriggerShooting();
 		img = GetImage();
 
 		//std::ostringstream filename;
@@ -57,6 +57,7 @@ int main()
 	}
 
 	cv::destroyAllWindows();
+	StopImageAcquisition();
 	CloseCamera();
 
 	system("pause");

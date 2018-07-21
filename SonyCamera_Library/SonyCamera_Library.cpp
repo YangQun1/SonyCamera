@@ -28,10 +28,39 @@ bool OpenCamera()
 	g_CameraHandle = new Sony_Camera();
 	ret = g_CameraHandle->_openCam();
 	if (!ret){
-		cout << "Sony Camera Open Failed" << endl;
+		cout << "Fail to Open Sony Camera" << endl;
 		return false;
 	}
+
+	cout << "Sony Camera is Opened" << endl;
+	return true;
+}
+
+bool CloseCamera()
+{
+	bool ret; 
+	ret = g_CameraHandle->_closeCam(); 
+	if (!ret){
+		cout << "Fail to Close Sony Camera" << endl;
+	}
+	else{
+		cout << "Sony Camera is Closed" << endl;
+	}
+
+	delete g_CameraHandle;
 	
+	return ret;
+}
+
+
+bool StartImageAcquisition()
+{
+	bool ret;
+	ret = g_CameraHandle->_startAcquisition();
+	if (!ret){
+		cout << "ERROR: Fail to Start Image Acquisition" << endl;
+		return false;
+	}
 
 	int height, width, bitPerPixel;
 	g_CameraHandle->_getImgInfo(&height, &width, &bitPerPixel);
@@ -49,38 +78,32 @@ bool OpenCamera()
 		mat.create(height, width, CV_16UC3);
 	}
 
-	if (mat.isContinuous()){
-		cout << "Sony Camera Opened" << endl;
-		return true;
-	}
-
-	mat.release();
-	cout << "ERROR: Mat Is Not Continuous" << endl;
-	return false;
-}
-
-bool CloseCamera()
-{
-	bool ret; 
-	ret = g_CameraHandle->_closeCam(); 
-	delete g_CameraHandle;
-	
-	if (!mat.empty()){
+	if (!mat.isContinuous()){
+		cout << "ERROR: Mat Is Not Continuous" << endl;
 		mat.release();
+		return false;
 	}
 
-	return ret;
-}
-
-
-bool StartImageAcquisition()
-{
-	return g_CameraHandle->_startAcquisition();
+	cout << "Image Acquisition is Started " << endl;
+	return true;
 }
 
 bool StopImageAcquisition()
 {
-	return g_CameraHandle->_stopAcquisition();
+	bool ret;
+	ret = g_CameraHandle->_stopAcquisition();
+	if (!ret){
+		cout << "ERROR: Fail to Stop Image Acquisition" << endl;
+	}
+	else{
+		cout << "Image Acquisition is Stopped " << endl;
+	}
+
+	if (!mat.empty()){
+		mat.release();
+	}
+	
+	return ret;
 }
 
 bool TriggerShooting()
@@ -125,10 +148,41 @@ static PyObject * OpenCamera_Py(PyObject *self, PyObject *args)
 	g_CameraHandle = new Sony_Camera();
 	ret = g_CameraHandle->_openCam();
 	if (!ret){
-		cout << "Sony Camera Open Failed" << endl;
+		cout << "ERROR: Fail to Open Sony Camera" << endl;
 		Py_RETURN_FALSE;
 	}
-	cout << "Sony Camera Opened" << endl;
+
+	cout << "Sony Camera is Opened" << endl;
+	Py_RETURN_TRUE;
+}
+
+static PyObject * CloseCamera_Py(PyObject *self, PyObject *args)
+{
+	// 关闭相机
+	bool ret;
+	ret = g_CameraHandle->_closeCam();
+	if (!ret){
+		cout << "Fail to Close Sony Camera" << endl;
+	}
+	else{
+		cout << "Sony Camera is Closed" << endl;
+	}
+
+	delete g_CameraHandle;
+	if (ret)
+		Py_RETURN_TRUE;
+
+	Py_RETURN_FALSE;
+}
+
+static PyObject * StartImageAcquisition_Py(PyObject *self, PyObject *args)
+{
+	bool ret;
+	ret = g_CameraHandle->_startAcquisition();
+	if (!ret){
+		cout << "ERROR: Fail to Start Image Acquisition" << endl;
+		Py_RETURN_FALSE;
+	}
 
 	// 为待处理图像申请内存
 	int bitPerPixel;
@@ -143,17 +197,20 @@ static PyObject * OpenCamera_Py(PyObject *self, PyObject *args)
 		channels = bitPerPixel / 16;
 	}
 
-
+	cout << "Image Acquisition is Started " << endl;
 	Py_RETURN_TRUE;
 }
 
-static PyObject * CloseCamera_Py(PyObject *self, PyObject *args)
+static PyObject * StopImageAcquisition_Py(PyObject *self, PyObject *args)
 {
-	// 关闭相机
 	bool ret;
-	ret = g_CameraHandle->_closeCam();
-	delete g_CameraHandle;
-	cout << "Sony Camera Closed" << endl;
+	ret = g_CameraHandle->_stopAcquisition();
+	if (!ret){
+		cout << "ERROR: Fail to Stop Image Acquisition" << endl;
+	}
+	else{
+		cout << "Image Acquisition is Stopped " << endl;
+	}
 
 	// 释放待处理图像内存
 	if (g_Buffer_BYTE != NULL){
@@ -164,27 +221,9 @@ static PyObject * CloseCamera_Py(PyObject *self, PyObject *args)
 		delete g_Buffer_SHORT;
 		g_Buffer_SHORT = NULL;
 	}
-	
+
 	if (ret)
 		Py_RETURN_TRUE;
-
-	Py_RETURN_FALSE;
-}
-
-static PyObject * StartImageAcquisition_Py(PyObject *self, PyObject *args)
-{
-	if (g_CameraHandle->_startAcquisition()){
-		Py_RETURN_TRUE;
-	}
-
-	Py_RETURN_FALSE;
-}
-
-static PyObject * StopImageAcquisition_Py(PyObject *self, PyObject *args)
-{
-	if (g_CameraHandle->_stopAcquisition()){
-		Py_RETURN_TRUE;
-	}
 
 	Py_RETURN_FALSE;
 }

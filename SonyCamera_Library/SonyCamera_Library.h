@@ -6,7 +6,8 @@ DLL的对外接口
 
 
 #define _C_CPP_INTERFACE_
-#define _C_CPP_ADDITIONAL_
+// #define _C_CPP_ADDITIONAL_
+
 #define _PYTHON_INTERFACE_
 
 #ifdef _C_CPP_INTERFACE_

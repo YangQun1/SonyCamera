@@ -224,7 +224,7 @@ unsigned int __stdcall ImageAcquThread(LPVOID Countext)
 
 bool Sony_Camera::_openCam()
 {
-	endEvent = CreateEvent(NULL, true, false, NULL);
+	// endEvent = CreateEvent(NULL, true, false, NULL);
 	// rcvTermEvent = CreateEvent(NULL, true, false, NULL);
 
 	XCCAM_SetStructVersion(XCCAM_LIBRARY_STRUCT_VERSION);
@@ -233,7 +233,7 @@ bool Sony_Camera::_openCam()
 	// 打开相机
 	if (!XCCAM_Open(NULL, &hCamera))
 	{
-		CloseHandle(endEvent);
+		//CloseHandle(endEvent);
 		// CloseHandle(rcvTermEvent);
 		return false;
 	}
@@ -241,27 +241,109 @@ bool Sony_Camera::_openCam()
 	// 申请相机的资源？
 	if (!XCCAM_ResourceAlloc(hCamera))
 	{
-		CloseHandle(endEvent);
+		//CloseHandle(endEvent);
 		// CloseHandle(rcvTermEvent);
 		XCCAM_Close(hCamera);
 		hCamera = 0;
 		return false;
 	}
-
-	// 为获取的图像申请内存空间
-	//XCCAM_ImageAlloc(hCamera, &pImage);
 
 	// 获取相机特性句柄
 	if (!XCCAM_GetFeatureHandle(hCamera, (HNodeMap*)&hFeature))
 	{
-		CloseHandle(endEvent);
+		//CloseHandle(endEvent);
 		// CloseHandle(rcvTermEvent);
 		XCCAM_Close(hCamera);
 		hCamera = 0;
 		return false;
 	}
 
-	// 获取相机输出的数据类型
+	//// 获取相机输出的数据类型
+	//char buffer[100];
+	//XCCAM_GetFeatureEnumeration(hFeature, "PixelFormat", buffer, 100, FALSE);
+	//if (0 == strcmp(buffer, "Mono8")){
+	//	m_channels = 1;
+	//	m_bitPerPixel = 8;
+	//	dataType = Mono8;
+	//}
+	//else if (0 == strcmp(buffer, "BayerRG8")){
+	//	m_channels = 3;
+	//	m_bitPerPixel = 24;
+	//	dataType = BayerRG8;
+	//}
+	//else if (0 == strcmp(buffer, "Mono12Packed")){
+	//	m_channels = 1;
+	//	m_bitPerPixel = 16;
+	//	dataType = Mono12Packed;
+	//}
+	//else if (0 == strcmp(buffer, "BayerRG12Packed")){
+	//	m_channels = 3;
+	//	m_bitPerPixel = 48;
+	//	dataType = BayerRG12Packed;
+	//}
+
+	// 获取图像的宽度和高度
+	//XCCAM_GetFeatureInteger(hFeature, "Height", &m_height, FALSE);
+	//XCCAM_GetFeatureInteger(hFeature, "Width", &m_width, FALSE);
+
+	//if (dataType == BayerRG8){
+	//	// 设置颜色转换模式
+	//	XCCAM_COLORCONVMODE Mode = {};
+	//	Mode.DIBMode = XCCAM_DIB24;
+	//	Mode.ShiftID = XCCAM_SFTAUTO;
+	//	Mode.Parallel_Thread = 4;
+	//	if (!XCCAM_SetConvMode(hCamera, &Mode, NULL))
+	//	{
+	//		CloseHandle(endEvent);
+	//		// CloseHandle(rcvTermEvent);
+	//		XCCAM_Close(hCamera);
+	//		hCamera = 0;
+	//		return false;
+	//	}
+	//}
+
+	//// 为内存池申请空间，用于存放转换后的图像
+	//imgBufPoolHandle = new Sequence_Pool<XCCAM_IMAGE>(hCamera);
+
+
+	//InitializeCriticalSection(&hCriticalSection);
+
+	isStarted = false;
+	isOpened = true;
+
+	return true;
+}
+
+bool Sony_Camera::_closeCam()
+{
+	if (isOpened == false){
+		return false;
+	}
+
+	if (isStarted == true){
+		_stopAcquisition();
+		isStarted = false;
+	}
+
+	XCCAM_ResourceRelease(hCamera);
+	XCCAM_Close(hCamera);
+	isOpened = false;
+
+	return true;
+}
+
+bool Sony_Camera::_startAcquisition()
+{
+	if (isOpened == false){
+		cout << "Need open camera first!" << endl;
+		return false;
+	}
+	if (isStarted == true){
+		cout << "Acquisition has already been started!" << endl;
+		return false;
+	}
+
+	// 获取相机的图像相关参数
 	char buffer[100];
 	XCCAM_GetFeatureEnumeration(hFeature, "PixelFormat", buffer, 100, FALSE);
 	if (0 == strcmp(buffer, "Mono8")){
@@ -297,8 +379,6 @@ bool Sony_Camera::_openCam()
 		Mode.Parallel_Thread = 4;
 		if (!XCCAM_SetConvMode(hCamera, &Mode, NULL))
 		{
-			CloseHandle(endEvent);
-			// CloseHandle(rcvTermEvent);
 			XCCAM_Close(hCamera);
 			hCamera = 0;
 			return false;
@@ -309,56 +389,8 @@ bool Sony_Camera::_openCam()
 	imgBufPoolHandle = new Sequence_Pool<XCCAM_IMAGE>(hCamera);
 
 
+	endEvent = CreateEvent(NULL, true, false, NULL);
 	InitializeCriticalSection(&hCriticalSection);
-
-	isStarted = false;
-	isOpened = true;
-
-	return true;
-}
-
-bool Sony_Camera::_closeCam()
-{
-	if (isOpened == false){
-		return false;
-	}
-
-	if (isStarted == true){
-#ifdef _IMAGECALLBACK_
-		XCCAM_SetImageCallBack(hCamera, NULL, NULL, 0, FALSE);
-		XCCAM_ImageStop(hCamera);
-#else
-		SetEvent(endEvent);
-		WaitForSingleObject(hThread, INFINITE);
-		XCCAM_ImageReqAbortAll(hCamera);
-		XCCAM_ImageStop(hCamera);
-		CloseHandle(hThread);
-#endif
-	}
-
-	// 释放相关资源
-	delete imgBufPoolHandle;
-	XCCAM_ResourceRelease(hCamera);
-	XCCAM_Close(hCamera);
-	CloseHandle(endEvent);
-	DeleteCriticalSection(&hCriticalSection);
-
-	isStarted = false;
-	isOpened = false;
-
-	return true;
-}
-
-bool Sony_Camera::_startAcquisition()
-{
-	if (isOpened == false){
-		cout << "Need open camera first!" << endl;
-		return false;
-	}
-	if (isStarted == true){
-		cout << "Acquisition has already been started!" << endl;
-		return false;
-	}
 
 #ifndef _IMAGECALLBACK_
 	XCCAM_ImageStart(hCamera);
@@ -388,6 +420,10 @@ bool Sony_Camera::_stopAcquisition()
 		XCCAM_ImageStop(hCamera);
 		CloseHandle(hThread);
 #endif
+
+		delete imgBufPoolHandle;
+		CloseHandle(endEvent);
+		DeleteCriticalSection(&hCriticalSection);
 	}
 
 	isStarted = false;
