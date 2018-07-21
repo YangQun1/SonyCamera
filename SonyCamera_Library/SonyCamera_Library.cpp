@@ -78,6 +78,11 @@ bool StartImageAcquisition()
 	return g_CameraHandle->_startAcquisition();
 }
 
+bool StopImageAcquisition()
+{
+	return g_CameraHandle->_stopAcquisition();
+}
+
 bool TriggerShooting()
 {
 	return g_CameraHandle->_triggerShooting();
@@ -175,6 +180,15 @@ static PyObject * StartImageAcquisition_Py(PyObject *self, PyObject *args)
 	Py_RETURN_FALSE;
 }
 
+static PyObject * StopImageAcquisition_Py(PyObject *self, PyObject *args)
+{
+	if (g_CameraHandle->_stopAcquisition()){
+		Py_RETURN_TRUE;
+	}
+
+	Py_RETURN_FALSE;
+}
+
 static PyObject * TriggerShooting_Py(PyObject *self, PyObject *args)
 {
 	if (g_CameraHandle->_triggerShooting()){
@@ -255,6 +269,7 @@ static PyMethodDef SonyCameraMethods[] = {
 	{ "OpenCamera", OpenCamera_Py, METH_NOARGS, "Function to open sony camera" },
 	{ "CloseCamera", CloseCamera_Py, METH_NOARGS, "Function to close sony camera" },
 	{ "StartImageAcquisition", StartImageAcquisition_Py, METH_NOARGS, "Function to start image acquisition" },
+	{ "StopImageAcquisition", StopImageAcquisition_Py, METH_NOARGS, "Function to stop image acquisition" },
 	{ "TriggerShooting", TriggerShooting_Py, METH_NOARGS, "Trigger zhe camera to take a photo, only to be used when the camera is in software trigger mode" },
 	{ "GetImage", GetImage_Py, METH_NOARGS, "Function to get an image from camera(not directly from camera,but from image pool actually)" },
 	{ NULL, NULL, 0, NULL }

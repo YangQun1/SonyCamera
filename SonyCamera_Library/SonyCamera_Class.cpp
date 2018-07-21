@@ -343,6 +343,9 @@ bool Sony_Camera::_closeCam()
 	CloseHandle(endEvent);
 	DeleteCriticalSection(&hCriticalSection);
 
+	isStarted = false;
+	isOpened = false;
+
 	return true;
 }
 
@@ -368,6 +371,27 @@ bool Sony_Camera::_startAcquisition()
 #endif
 
 	isStarted = true;
+	return true;
+}
+
+bool Sony_Camera::_stopAcquisition()
+{
+
+	if (isStarted == true){
+#ifdef _IMAGECALLBACK_
+		XCCAM_SetImageCallBack(hCamera, NULL, NULL, 0, FALSE);
+		XCCAM_ImageStop(hCamera);
+#else
+		SetEvent(endEvent);
+		WaitForSingleObject(hThread, INFINITE);
+		XCCAM_ImageReqAbortAll(hCamera);
+		XCCAM_ImageStop(hCamera);
+		CloseHandle(hThread);
+#endif
+	}
+
+	isStarted = false;
+
 	return true;
 }
 

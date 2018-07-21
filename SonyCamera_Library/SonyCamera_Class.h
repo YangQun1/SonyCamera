@@ -50,6 +50,7 @@ public:
 	bool	_openCam();
 	bool	_closeCam();
 	bool	_startAcquisition();
+	bool	_stopAcquisition();
 	bool	_getImgBuf(UCHAR *pBuffer);
 	bool	_getImgInfo(int *pHeight, int *pWidth, int *pBitPerPixel);
 	bool	_triggerShooting();
