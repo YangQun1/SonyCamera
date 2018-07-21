@@ -192,12 +192,20 @@ unsigned int __stdcall ImageAcquThread(LPVOID Countext)
 
 		if (NULL != pImage_acqusiting){
 			// 等待采集完成
-			XCCAM_ImageComplete(pMp->hCamera, pImage_acqusiting, -1, NULL);
-
-			// 放到采集完成队列中，供处理线程使用
-			EnterCriticalSection(&(pMp->hCriticalSection));
-			pMp->imgBufPoolHandle->PushBack(pImage_acqusiting);
-			LeaveCriticalSection(&(pMp->hCriticalSection));
+			BOOL status;
+			status = XCCAM_ImageComplete(pMp->hCamera, pImage_acqusiting, 500, NULL);
+			if (TRUE == status){
+				// 放到采集完成队列中，供处理线程使用
+				EnterCriticalSection(&(pMp->hCriticalSection));
+				pMp->imgBufPoolHandle->PushBack(pImage_acqusiting);
+				LeaveCriticalSection(&(pMp->hCriticalSection));
+			}
+			else{
+				// 采集图像失败，将这段内存放到空闲队列中，以备下次使用
+				EnterCriticalSection(&(pMp->hCriticalSection));
+				pMp->imgBufPoolHandle->RetBuffer(pImage_acqusiting);
+				LeaveCriticalSection(&(pMp->hCriticalSection));
+			}
 
 
 			//QueryPerformanceCounter(&li);
