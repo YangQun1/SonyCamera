@@ -177,7 +177,7 @@ BOOL CSetCameraDlg::OnInitDialog()
 	cb_TriggerSource->AddString(_T("Line1"));
 	cb_TriggerSource->AddString(_T("Line2"));
 	cb_TriggerSource->AddString(_T("Line3"));
-	cb_TriggerSource->AddString(_T("SoftWare"));
+	cb_TriggerSource->AddString(_T("Software"));
 
 	sd_TriggerDelay = (CSliderCtrl *)GetDlgItem(IDC_SLIDER_TRIGGER_DELAY);
 	sd_TriggerDelay->SetRange(0, 4000000, 0);
@@ -195,7 +195,7 @@ BOOL CSetCameraDlg::OnInitDialog()
 		else if (strcmp(bufferGet, "Line3") == 0){
 			cb_TriggerSource->SetCurSel(2);
 		}
-		else if (strcmp(bufferGet, "SoftWare") == 0){
+		else if (strcmp(bufferGet, "Software") == 0){
 			cb_TriggerSource->SetCurSel(3);
 		}
 		double triggerDelay;
@@ -661,7 +661,7 @@ void CSetCameraDlg::OnCbnSelchangeComboTriggerMode()
 			XCCAM_SetFeatureEnumeration(pMp->m_hFeature, "TriggerSource", "Line3");
 		}
 		else{
-			XCCAM_SetFeatureEnumeration(pMp->m_hFeature, "TriggerSource", "SoftWare");
+			XCCAM_SetFeatureEnumeration(pMp->m_hFeature, "TriggerSource", "Software");
 		}
 
 		int delayTime = sd_TriggerDelay->GetPos();
@@ -686,20 +686,22 @@ void CSetCameraDlg::OnCbnSelchangeComboTriggerSource()
 	if (TRUE == isInitingDialog)
 		return;
 
+	BOOL ret;
+
 	CSonyCamera_MFCDlg *pMp = (CSonyCamera_MFCDlg *)GetParent();
 
 	int sel = cb_TriggerSource->GetCurSel();
 	if (0 == sel){
-		XCCAM_SetFeatureEnumeration(pMp->m_hFeature, "TriggerSource", "Line1");
+		ret = XCCAM_SetFeatureEnumeration(pMp->m_hFeature, "TriggerSource", "Line1");
 	}
 	else if (1 == sel){
-		XCCAM_SetFeatureEnumeration(pMp->m_hFeature, "TriggerSource", "Line2");
+		ret = XCCAM_SetFeatureEnumeration(pMp->m_hFeature, "TriggerSource", "Line2");
 	}
 	else if (2 == sel){
-		XCCAM_SetFeatureEnumeration(pMp->m_hFeature, "TriggerSource", "Line3");
+		ret = XCCAM_SetFeatureEnumeration(pMp->m_hFeature, "TriggerSource", "Line3");
 	}
 	else{
-		XCCAM_SetFeatureEnumeration(pMp->m_hFeature, "TriggerSource", "SoftWare");
+		ret = XCCAM_SetFeatureEnumeration(pMp->m_hFeature, "TriggerSource", "Software");
 	}
 }
 
