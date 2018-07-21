@@ -89,7 +89,18 @@ cv::Mat& GetImage()
 
 	return mat;
 }
-#endif
+
+#ifdef _C_CPP_ADDITIONAL_
+#include "SonyCamera_Class.h"
+
+Sony_Camera_Handle GetCameraHandle()
+{
+	return g_CameraHandle;
+}
+
+#endif /* _C_CPP_ADDITIONAL_ */
+
+#endif /* _C_CPP_INTERFACE_ */
 /*---------------------------- C/C++接口-结束 ------------------------------------- */
 
 /*--------------------------- Python接口-开始 ------------------------------------- */
