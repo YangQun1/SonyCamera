@@ -50,10 +50,9 @@ public:
 	bool	_openCam();
 	bool	_closeCam();
 	bool	_startAcquisition();
-	//bool	_getImgBuf(UCHAR **pBuffer, int *pHeight, int *pWidth, int *pChannels);
-	//bool	_getImgBuf(USHORT **pBuffer, int *pHeight, int *pWidth, int *pChannels);
 	bool	_getImgBuf(UCHAR *pBuffer);
 	bool	_getImgInfo(int *pHeight, int *pWidth, int *pBitPerPixel);
+	bool	_triggerShooting();
 };
 
 typedef Sony_Camera* Sony_Camera_Handle;

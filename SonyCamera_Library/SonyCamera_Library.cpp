@@ -61,23 +61,27 @@ bool OpenCamera()
 
 bool CloseCamera()
 {
-	g_CameraHandle->_closeCam(); 
+	bool ret; 
+	ret = g_CameraHandle->_closeCam(); 
 	delete g_CameraHandle;
 	
 	if (!mat.empty()){
 		mat.release();
 	}
 
-	return true;
+	return ret;
 }
 
 
 bool StartImageAcquisition()
 {
-	g_CameraHandle->_startAcquisition();
-	return true;
+	return g_CameraHandle->_startAcquisition();
 }
 
+bool TriggerShooting()
+{
+	return g_CameraHandle->_triggerShooting();
+}
 
 cv::Mat& GetImage()
 {
@@ -106,7 +110,7 @@ static PyObject * OpenCamera_Py(PyObject *self, PyObject *args)
 	ret = g_CameraHandle->_openCam();
 	if (!ret){
 		cout << "Sony Camera Open Failed" << endl;
-		Py_RETURN_NONE;
+		Py_RETURN_FALSE;
 	}
 	cout << "Sony Camera Opened" << endl;
 
@@ -124,13 +128,14 @@ static PyObject * OpenCamera_Py(PyObject *self, PyObject *args)
 	}
 
 
-	Py_RETURN_NONE;
+	Py_RETURN_TRUE;
 }
 
 static PyObject * CloseCamera_Py(PyObject *self, PyObject *args)
 {
 	// ¹Ø±ÕÏà»ú
-	g_CameraHandle->_closeCam();
+	bool ret;
+	ret = g_CameraHandle->_closeCam();
 	delete g_CameraHandle;
 	cout << "Sony Camera Closed" << endl;
 
@@ -143,15 +148,29 @@ static PyObject * CloseCamera_Py(PyObject *self, PyObject *args)
 		delete g_Buffer_SHORT;
 		g_Buffer_SHORT = NULL;
 	}
+	
+	if (ret)
+		Py_RETURN_TRUE;
 
-	Py_RETURN_NONE;
+	Py_RETURN_FALSE;
 }
 
 static PyObject * StartImageAcquisition_Py(PyObject *self, PyObject *args)
 {
-	g_CameraHandle->_startAcquisition();
+	if (g_CameraHandle->_startAcquisition()){
+		Py_RETURN_TRUE;
+	}
 
-	Py_RETURN_NONE;
+	Py_RETURN_FALSE;
+}
+
+static PyObject * TriggerShooting_Py(PyObject *self, PyObject *args)
+{
+	if (g_CameraHandle->_triggerShooting()){
+		Py_RETURN_TRUE;
+	}
+
+	Py_RETURN_FALSE;
 }
 
 static PyObject * GetImage_Py(PyObject *self, PyObject *args)
@@ -225,6 +244,7 @@ static PyMethodDef SonyCameraMethods[] = {
 	{ "OpenCamera", OpenCamera_Py, METH_NOARGS, "Function to open sony camera" },
 	{ "CloseCamera", CloseCamera_Py, METH_NOARGS, "Function to close sony camera" },
 	{ "StartImageAcquisition", StartImageAcquisition_Py, METH_NOARGS, "Function to start image acquisition" },
+	{ "TriggerShooting", TriggerShooting_Py, METH_NOARGS, "Trigger zhe camera to take a photo, only to be used when the camera is in software trigger mode" },
 	{ "GetImage", GetImage_Py, METH_NOARGS, "Function to get an image from camera(not directly from camera,but from image pool actually)" },
 	{ NULL, NULL, 0, NULL }
 };

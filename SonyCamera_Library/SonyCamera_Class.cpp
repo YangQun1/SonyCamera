@@ -301,7 +301,6 @@ bool Sony_Camera::_openCam()
 	imgBufPoolHandle = new Sequence_Pool<XCCAM_IMAGE>(hCamera);
 
 
-	hMutex = CreateMutex(NULL, FALSE, _T("ImgBufPoolMutex"));
 	InitializeCriticalSection(&hCriticalSection);
 
 	isStarted = false;
@@ -365,6 +364,13 @@ bool Sony_Camera::_startAcquisition()
 }
 
 
+/*
+ * 函数功能：	从采集完成的图像缓存队列中取出一段缓存，
+ *				将缓存的内容拷贝到传入的地址中，然后将缓存放回到空闲队列（空闲内存池）中
+ * 
+ * 参数：		pBuffer	已经申请好的一段内存，用于存放从缓存中拷贝出的数据，供后续的处理使用
+ *
+ */
 bool Sony_Camera::_getImgBuf(UCHAR *pBuffer)
 {
 	XCCAM_IMAGE *pImage = NULL;
@@ -418,6 +424,31 @@ bool Sony_Camera::_getImgInfo(int *pHeight, int *pWidth, int *pBitPerPixel){
 	*pHeight = m_height;
 	*pWidth = m_width;
 	*pBitPerPixel = m_bitPerPixel;
+
+	return true;
+}
+
+/*
+ * 函数功能：	仅当相机被设置为软件触发模式时，使用该函数触发相机拍照
+ *
+ */
+bool Sony_Camera::_triggerShooting()
+{
+	if (!isOpened){
+		cout << "Error:Camera is not opened!" << endl;
+		return false;
+	}
+
+	if (!isStarted){
+		cout << "Warning: Acqusition is not started!" << endl;
+		return false;
+	}
+
+	BOOL ret = XCCAM_FeatureCommand(hFeature, "TriggerSoftware");
+	if (FALSE == ret){
+		cout << "Error:Trigger failed!" << endl;
+		return false;
+	}
 
 	return true;
 }
