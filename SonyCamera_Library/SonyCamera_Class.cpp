@@ -193,7 +193,7 @@ unsigned int __stdcall ImageAcquThread(LPVOID Countext)
 		if (NULL != pImage_acqusiting){
 			// 等待采集完成
 			BOOL status;
-			status = XCCAM_ImageComplete(pMp->hCamera, pImage_acqusiting, 500, NULL);
+			status = XCCAM_ImageComplete(pMp->hCamera, pImage_acqusiting, -1, NULL);
 			if (TRUE == status){
 				// 放到采集完成队列中，供处理线程使用
 				EnterCriticalSection(&(pMp->hCriticalSection));
@@ -367,8 +367,8 @@ bool Sony_Camera::_stopAcquisition()
 		XCCAM_ImageStop(hCamera);
 #else
 		SetEvent(endEvent);
-		WaitForSingleObject(hThread, INFINITE);
 		XCCAM_ImageReqAbortAll(hCamera);
+		WaitForSingleObject(hThread, INFINITE);
 		XCCAM_ImageStop(hCamera);
 		CloseHandle(hThread);
 #endif
