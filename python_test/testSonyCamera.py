@@ -1,4 +1,4 @@
-import SonyCamera
+﻿import SonyCamera
 
 import cv2
 import time
