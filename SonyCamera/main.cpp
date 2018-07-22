@@ -34,6 +34,8 @@ int main()
 	while (1){
 		// TriggerShooting();
 		img = GetImage();
+		if (img.empty())
+			continue;
 
 		//std::ostringstream filename;
 		//filename << "E:\\VSProject\\SonyCamera\\image\\" << j << ".png";

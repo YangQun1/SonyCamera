@@ -13,7 +13,9 @@ if __name__ == "__main__":
     j = 0
     now = last = time.clock()
     while 1:
-        im = SonyCamera.GetImage()
+        im = SonyCamera.GetImage(250)
+        if im is None:
+            continue
         now = time.clock()
         print im.shape
         cv2.imshow('Image', im)
