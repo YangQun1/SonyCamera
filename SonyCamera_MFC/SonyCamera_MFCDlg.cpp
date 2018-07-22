@@ -14,6 +14,8 @@
 
 #include "SetCameraDlg.h"
 
+#include "SonyCamera_Library.h"
+
 using namespace std;
 
 #ifdef _DEBUG
@@ -84,7 +86,6 @@ BEGIN_MESSAGE_MAP(CSonyCamera_MFCDlg, CDialogEx)
 	ON_BN_CLICKED(IDC_BUTTON_STOPSHOWIMG, &CSonyCamera_MFCDlg::OnBnClickedButtonStopshowimg)
 	ON_BN_CLICKED(IDC_BUTTON_CLOSECAM, &CSonyCamera_MFCDlg::OnBnClickedButtonClosecam)
 	ON_BN_CLICKED(IDC_BUTTON_TRIGGER, &CSonyCamera_MFCDlg::OnBnClickedButtonTrigger)
-	ON_BN_CLICKED(IDC_BUTTON_12BITMODE, &CSonyCamera_MFCDlg::OnBnClickedButton12bitmode)
 	ON_BN_CLICKED(IDC_BUTTON_SETCAMERA, &CSonyCamera_MFCDlg::OnBnClickedButtonSetcamera)
 END_MESSAGE_MAP()
 
@@ -215,212 +216,126 @@ void CSonyCamera_MFCDlg::OnBnClickedButtonOpencam()
 {
 	// TODO:  在此添加控件通知处理程序代码
 
-	XCCAM_SetStructVersion(XCCAM_LIBRARY_STRUCT_VERSION);
+	// XCCAM_SetStructVersion(XCCAM_LIBRARY_STRUCT_VERSION);
 	
-
-	// 打开相机
-	if (!XCCAM_Open(NULL, &hCamera))
-	{
-		MessageBox(_T("Camera Not found"));
-		CloseHandle(m_EndEvent);
-		CloseHandle(m_RcvTermEvent);
+	bool ret;
+	ret = OpenCamera();
+	if (!ret){
+		MessageBox(_T("Open Camera Failed!"));
 		return;
 	}
+
+	Sony_Camera_Handle sonyHandle = GetCameraHandle();
+
+	hCamera = sonyHandle->hCamera;
+	hFeature = sonyHandle->hFeature;
 
 	cameraStage = CAMERA_BOOTED;
 	cameraState = CAMERA_OPENED;
 
-	MessageBox(_T("Camera Open Successfully!"));
+	XCCAM_SetCallBack(this, SystemFunc);
+
+	MessageBox(_T("Open Camera Successfully!"));
 
 	return;
 }
 
 
-// 定义图像回调函数
-#ifdef _IMAGECALLBACK_
-extern "C"
-VOID  CALLBACK ImageDataRcv(HCAMERA hCamera, 
-							XCCAM_IMAGE* pImage, 
-							pXCCAM_IMAGEDATAINFO pImageInfo,
-							PVOID Context )
-{
-	CSonyCamera_MFCDlg* pMp = (CSonyCamera_MFCDlg*)Context;
-	/* Color-converts the acquired image data with the color conversion API 
-	and convert it to data for display. */
-	XCCAM_ConvExec(hCamera, pImage, pMp->m_pImage);
-	cv::imshow("figure", pMp->cv_image);
-	cv::waitKey(20);
-}
-#endif
 
 // 定义获取图像的线程的函数
-UINT AFX_CDECL ImageAcquisition(LPVOID Countext)
+//UINT AFX_CDECL ImageAcquisition(LPVOID Countext)
+//{
+//	CSonyCamera_MFCDlg *pMp = (CSonyCamera_MFCDlg *)Countext;
+//
+//	// 创建用于显示图像的窗口
+//	cv::namedWindow("figure");
+//
+//	LARGE_INTEGER li;
+//	LONGLONG start, end, freq;
+//
+//	QueryPerformanceFrequency(&li);
+//	freq = li.QuadPart;
+//
+//	while (1){
+//		// 请求退出采集图像事件句柄，若请求到，则退出采集过程
+//		if (WaitForSingleObject(pMp->m_EndEvent, 0) == WAIT_OBJECT_0){
+//			cv::destroyWindow("figure");
+//			ResetEvent(pMp->m_EndEvent);
+//			break;
+//		}
+//
+//		QueryPerformanceCounter(&li);
+//		start = li.QuadPart;
+//
+//		XCCAM_ImageReq(pMp->hCamera, pMp->pImage);						// 获取图像
+//		XCCAM_ImageComplete(pMp->hCamera, pMp->pImage, -1, NULL);		// 等待图像获取完成，超时参数设置为-1，无限等待
+//		
+//		QueryPerformanceCounter(&li);
+//		end = li.QuadPart;
+//		int useTime = (int)((end - start) * 1000 / freq);
+//		std::cout << "acqu time: " << useTime << "ms" << std::endl;
+//
+//		XCCAM_ConvExec(pMp->hCamera, pMp->pImage, pMp->m_pImage);		// 将获取到的图像转换成用于显示的格式
+//		cv::imshow("figure", pMp->cv_image);
+//		cv::waitKey(20);
+//	}
+//
+//	// 设置采集终止事件，表示采集进程终止
+//	SetEvent(pMp->m_RcvTermEvent);
+//	return 0;
+//}
+
+UINT AFX_CDECL ImageShow(LPVOID Countext)
 {
 	CSonyCamera_MFCDlg *pMp = (CSonyCamera_MFCDlg *)Countext;
 
-	// 创建用于显示图像的窗口
-	cv::namedWindow("figure");
+	cv::Mat img;
 
-	LARGE_INTEGER li;
-	LONGLONG start, end, freq;
-
-	QueryPerformanceFrequency(&li);
-	freq = li.QuadPart;
+	cv::namedWindow("Image", 0);
+	cvResizeWindow("Image", 1224, 1024);
 
 	while (1){
-		// 请求退出采集图像事件句柄，若请求到，则退出采集过程
-		if (WaitForSingleObject(pMp->m_EndEvent, 0) == WAIT_OBJECT_0){
-			cv::destroyWindow("figure");
-			ResetEvent(pMp->m_EndEvent);
+
+		if (WaitForSingleObject(pMp->endShowEvent, 0) == WAIT_OBJECT_0){
+			cv::destroyWindow("Image");
 			break;
 		}
 
-		QueryPerformanceCounter(&li);
-		start = li.QuadPart;
+		img = GetImage();
+		if (img.empty())
+			continue;
 
-		XCCAM_ImageReq(pMp->hCamera, pMp->pImage);						// 获取图像
-		XCCAM_ImageComplete(pMp->hCamera, pMp->pImage, -1, NULL);		// 等待图像获取完成，超时参数设置为-1，无限等待
-		
-		QueryPerformanceCounter(&li);
-		end = li.QuadPart;
-		int useTime = (int)((end - start) * 1000 / freq);
-		std::cout << "acqu time: " << useTime << "ms" << std::endl;
-
-		XCCAM_ConvExec(pMp->hCamera, pMp->pImage, pMp->m_pImage);		// 将获取到的图像转换成用于显示的格式
-		cv::imshow("figure", pMp->cv_image);
-		cv::waitKey(20);
+		cv::imshow("Image", img);
+		cv::waitKey(5);
 	}
 
-	// 设置采集终止事件，表示采集进程终止
-	SetEvent(pMp->m_RcvTermEvent);
+	SetEvent(pMp->showEndEvent);
 	return 0;
 }
 
 void CSonyCamera_MFCDlg::OnBnClickedButtonShowimg()
 {
 	// TODO:  在此添加控件通知处理程序代码
+	if (cameraState != CAMERA_OPENED){
+		MessageBox(_T("Open Camera First!"));
+		return;
+	}
+
 	if (isShowingImage == TRUE){
 		MessageBox(_T("Image is being showed!"));
 		return;
 	}
 
-	m_EndEvent = CreateEvent(NULL, true, false, NULL);
-	m_RcvTermEvent = CreateEvent(NULL, true, false, NULL);
-
-	// 获取相机特性句柄
-	if (!XCCAM_GetFeatureHandle(hCamera, (HNodeMap*)&m_hFeature))
-	{
-		MessageBox(_T("Get FeatureHandle Error"));
-		CloseHandle(m_EndEvent);
-		CloseHandle(m_RcvTermEvent);
-		XCCAM_Close(hCamera);
-		hCamera = 0;
+	bool ret = StartImageAcquisition();
+	if (!ret){
+		MessageBox(_T("Fail to start image acqusition!"));
 		return;
 	}
 
-	// 设置相机采集模式
-	if (!XCCAM_SetFeatureEnumeration(m_hFeature, "AcquisitionMode", "Continuous"))
-	{
-		MessageBox(_T("Set Feature Enumeration Error"));
-		CloseHandle(m_EndEvent);
-		CloseHandle(m_RcvTermEvent);
-		XCCAM_Close(hCamera);
-		hCamera = 0;
-		return;
-	}
-
-	BOOL ret = FALSE;
-
-	// 设置颜色转换模式?
-	XCCAM_COLORCONVMODE Mode = {};
-	Mode.StoreMode = XCCAM_MEMmode;
-	Mode.DIBMode = XCCAM_DIB24;
-	Mode.ShiftID = XCCAM_SFTAUTO;
-	Mode.Parallel_Thread = 4;
-	Mode.BayerRevision_G = FALSE;
-	if (!XCCAM_SetConvMode(hCamera, &Mode, NULL))
-	{
-		MessageBox(_T("Conver Mode Set Error"));
-		CloseHandle(m_EndEvent);
-		CloseHandle(m_RcvTermEvent);
-		XCCAM_Close(hCamera);
-		hCamera = 0;
-		return;
-	}
-
-	// 申请相机的资源？
-	if (!XCCAM_ResourceAlloc(hCamera))
-	{
-		MessageBox(_T("Resource Alloc Error"));
-		CloseHandle(m_EndEvent);
-		CloseHandle(m_RcvTermEvent);
-		::XCCAM_Close(hCamera);
-		hCamera = 0;
-		return;
-	}
-
-	// 为获取的图像申请内存空间
-	XCCAM_ImageAlloc(hCamera, &pImage);
-
-	// 获取BMP图像信息
-	ULONG Len = 0;
-	if (!XCCAM_GetBMPINFO(hCamera, NULL, &Len, false))
-	{
-		MessageBox(_T("Get BMPINFO Error"));
-		XCCAM_ResourceRelease(hCamera);
-		XCCAM_ImageFreeAll(hCamera);
-		XCCAM_Close(hCamera);
-		CloseHandle(m_EndEvent);
-		CloseHandle(m_RcvTermEvent);
-		hCamera = 0;
-		return;
-	}
-	m_pBitInfo = (PBITMAPINFO)new BYTE[Len];
-	if (!XCCAM_GetBMPINFO(hCamera, m_pBitInfo, &Len, false))
-	{
-		MessageBox(_T("Get BMPINFO Error"));
-		XCCAM_ResourceRelease(hCamera);
-		XCCAM_ImageFreeAll(hCamera);
-		XCCAM_Close(hCamera);
-		CloseHandle(m_EndEvent);
-		CloseHandle(m_RcvTermEvent);
-		hCamera = 0;
-		return;
-	}
-
-	// 为转换后的图像申请内存空间
-	int height = m_pBitInfo->bmiHeader.biHeight;
-	int width = m_pBitInfo->bmiHeader.biWidth;
-	int channels = m_pBitInfo->bmiHeader.biBitCount / 8;
-	cv_image.create(height, width, CV_16UC3);
-	m_pImage = NULL;
-	if (cv_image.isContinuous()) {
-		m_pImage = cv_image.data;
-	}
-	else {
-		MessageBox(_T("opencv mat is not continuous!"));
-		XCCAM_ResourceRelease(hCamera);
-		XCCAM_ImageFreeAll(hCamera);
-		delete[] m_pBitInfo;
-		XCCAM_Close(hCamera);
-		CloseHandle(m_EndEvent);
-		CloseHandle(m_RcvTermEvent);
-		hCamera = 0;
-		return;
-	}
-
-#ifndef _IMAGECALLBACK_
-	// 开始图像采集
-	XCCAM_ImageStart(hCamera);
-
-	// 创建采集显示线程
-	AfxBeginThread(ImageAcquisition, this);
-
-#else
-	cv::namedWindow("figure");
-	XCCAM_SetImageCallBack(hCamera, this, ImageDataRcv, 1, FALSE);
-	XCCAM_ImageStart(hCamera);
-#endif
+	// 创建显示线程和同步量
+	endShowEvent = CreateEvent(NULL, true, false, NULL);
+	showEndEvent = CreateEvent(NULL, true, false, NULL);
+	AfxBeginThread(ImageShow, this);
 
 	isShowingImage = TRUE;
 	return;
@@ -435,24 +350,15 @@ void CSonyCamera_MFCDlg::OnBnClickedButtonStopshowimg()
 		return;
 	}
 
-#ifdef _IMAGECALLBACK_
-	XCCAM_ImageStop(hCamera);
-	cv::destroyWindow("figure");
-	XCCAM_SetImageCallBack(hCamera, NULL, NULL, 0, FALSE);
-#else
-	SetEvent(m_EndEvent);
-	XCCAM_ImageReqAbortAll(hCamera);
-	WaitForSingleObject(m_RcvTermEvent, INFINITE);
-	ResetEvent(m_RcvTermEvent);
-	XCCAM_ImageStop(hCamera);
-#endif
+	bool ret;
 
-	// 释放相关资源
-	XCCAM_ResourceRelease(hCamera);
-	XCCAM_ImageFreeAll(hCamera);
-	delete[] m_pBitInfo;
-	CloseHandle(m_EndEvent);
-	CloseHandle(m_RcvTermEvent);
+	SetEvent(endShowEvent);
+	WaitForSingleObject(showEndEvent, INFINITE);
+	CloseHandle(showEndEvent);
+	CloseHandle(endShowEvent);
+
+
+	ret = StopImageAcquisition();
 
 	isShowingImage = FALSE;
 	return;
@@ -469,8 +375,10 @@ void CSonyCamera_MFCDlg::OnBnClickedButtonClosecam()
 	}
 
 	// 关闭相机
-	XCCAM_Close(hCamera);
+	if (cameraState == CAMERA_OPENED)
+		CloseCamera();
 	cameraState = CAMERA_CLOSED;
+	MessageBox(_T("Close Camera Successfully!"));
 	return;
 }
 
@@ -479,54 +387,14 @@ void CSonyCamera_MFCDlg::OnBnClickedButtonTrigger()
 {
 	// TODO:  在此添加控件通知处理程序代码
 
-	XCCAM_FeatureCommand(m_hFeature, "TriggerSoftware");
+	bool ret = TriggerShooting();
+	if (!ret){
+		MessageBox(_T("Fail to Trigger Shooting!"));
+	}
 
 	return;
 }
 
-
-void CSonyCamera_MFCDlg::OnBnClickedButton12bitmode()
-{
-	// TODO:  在此添加控件通知处理程序代码
-	MessageBox(_T("此过程需要重启相机，点击\"确定\"开始自动重启过程"));
-	BOOL ret = FALSE;
-
-	// 设置图像的位宽为12bit
-	char bufferGet[100];
-	char *bufferSet1 = "Mono12Packed";
-	char *bufferSet2 = "Mode1";
-
-	// 需要先设置相机到Mode1，高速模式
-	XCCAM_FEATUREINFO DriveModeInfo;
-	ret = XCCAM_FeatureInfo(m_hFeature, "DriveMode", &DriveModeInfo);
-	XCCAM_GetFeatureEnumeration(m_hFeature, "DriveMode", bufferGet, 100, FALSE);
-	ret = XCCAM_SetFeatureEnumeration(m_hFeature, "DriveMode", bufferSet2);
-	XCCAM_GetFeatureEnumeration(m_hFeature, "DriveMode", bufferGet, 100, FALSE);
-
-	// 然后重启相机
-	ret = XCCAM_FeatureCommand(m_hFeature, "CameraReboot");
-	XCCAM_Close(hCamera);
-	cameraState = CAMERA_CLOSED;
-	isBooting = TRUE;
-
-	// 等待相机重启完成
-	while (isBooting == TRUE){
-		Sleep(1000);
-	}
-
-	// 重新打开相机
-	XCCAM_SetStructVersion(XCCAM_LIBRARY_STRUCT_VERSION);
-	// XCCAM_SetCallBack(NULL, SystemFunc);
-	ret = XCCAM_Open(NULL, &hCamera);
-	cameraState = CAMERA_OPENED;
-
-	// 设置位宽
-	ret = XCCAM_GetFeatureHandle(hCamera, (HNodeMap*)&m_hFeature);
-	XCCAM_GetFeatureEnumeration(m_hFeature, "PixelFormat", bufferGet, 100, FALSE);
-	ret = XCCAM_SetFeatureEnumeration(m_hFeature, "PixelFormat", bufferSet1);
-	XCCAM_GetFeatureEnumeration(m_hFeature, "PixelFormat", bufferGet, 100, FALSE);
-	XCCAM_Close(hCamera);
-}
 
 
 void CSonyCamera_MFCDlg::OnBnClickedButtonSetcamera()
@@ -546,7 +414,13 @@ void CSonyCamera_MFCDlg::OnBnClickedButtonSetcamera()
 		return;
 	}
 
+	//  在配置相机的某些参数之前需要先释放相机资源
+	XCCAM_ResourceRelease(hCamera);
+
 	if (setCameraDlg.DoModal() == IDOK){
 
 	}
+
+	// 配置完成后，重新申请相机资源
+	XCCAM_ResourceAlloc(hCamera);
 }

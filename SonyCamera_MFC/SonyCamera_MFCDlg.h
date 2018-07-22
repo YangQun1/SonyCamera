@@ -11,6 +11,8 @@
 
 #include "SetCameraDlg.h"
 
+#include "SonyCamera_Library.h"
+
 enum CAMERA_STATE{
 	CAMERA_CLOSED,
 	CAMERA_OPENED
@@ -47,15 +49,15 @@ protected:
 	DECLARE_MESSAGE_MAP()
 	
 public:
-	HANDLE m_EndEvent;			// 退出采集事件句柄
-	HANDLE m_RcvTermEvent;		// 采集线程终止句柄
+	HANDLE endShowEvent;		// 退出显示事件
+	HANDLE showEndEvent;		// 显示退出事件
 
 	HCAMERA hCamera;			// 相机句柄
 	XCCAM_IMAGE* pImage;
 	cv::Mat cv_image;
 	PBITMAPINFO m_pBitInfo;
 	PUCHAR m_pImage;
-	HFEATURE* m_hFeature;
+	HFEATURE* hFeature;
 
 	BOOL isShowingImage;
 
