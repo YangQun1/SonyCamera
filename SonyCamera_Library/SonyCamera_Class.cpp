@@ -199,6 +199,7 @@ unsigned int __stdcall ImageAcquThread(LPVOID Countext)
 				EnterCriticalSection(&(pMp->hCriticalSection));
 				pMp->imgBufPoolHandle->PushBack(pImage_acqusiting);
 				LeaveCriticalSection(&(pMp->hCriticalSection));
+				ReleaseSemaphore(pMp->hSemImgValid, 1, NULL);	// 信号量加1
 			}
 			else{
 				// 采集图像失败，将这段内存放到空闲队列中，以备下次使用
@@ -257,56 +258,6 @@ bool Sony_Camera::_openCam()
 		hCamera = 0;
 		return false;
 	}
-
-	//// 获取相机输出的数据类型
-	//char buffer[100];
-	//XCCAM_GetFeatureEnumeration(hFeature, "PixelFormat", buffer, 100, FALSE);
-	//if (0 == strcmp(buffer, "Mono8")){
-	//	m_channels = 1;
-	//	m_bitPerPixel = 8;
-	//	dataType = Mono8;
-	//}
-	//else if (0 == strcmp(buffer, "BayerRG8")){
-	//	m_channels = 3;
-	//	m_bitPerPixel = 24;
-	//	dataType = BayerRG8;
-	//}
-	//else if (0 == strcmp(buffer, "Mono12Packed")){
-	//	m_channels = 1;
-	//	m_bitPerPixel = 16;
-	//	dataType = Mono12Packed;
-	//}
-	//else if (0 == strcmp(buffer, "BayerRG12Packed")){
-	//	m_channels = 3;
-	//	m_bitPerPixel = 48;
-	//	dataType = BayerRG12Packed;
-	//}
-
-	// 获取图像的宽度和高度
-	//XCCAM_GetFeatureInteger(hFeature, "Height", &m_height, FALSE);
-	//XCCAM_GetFeatureInteger(hFeature, "Width", &m_width, FALSE);
-
-	//if (dataType == BayerRG8){
-	//	// 设置颜色转换模式
-	//	XCCAM_COLORCONVMODE Mode = {};
-	//	Mode.DIBMode = XCCAM_DIB24;
-	//	Mode.ShiftID = XCCAM_SFTAUTO;
-	//	Mode.Parallel_Thread = 4;
-	//	if (!XCCAM_SetConvMode(hCamera, &Mode, NULL))
-	//	{
-	//		CloseHandle(endEvent);
-	//		// CloseHandle(rcvTermEvent);
-	//		XCCAM_Close(hCamera);
-	//		hCamera = 0;
-	//		return false;
-	//	}
-	//}
-
-	//// 为内存池申请空间，用于存放转换后的图像
-	//imgBufPoolHandle = new Sequence_Pool<XCCAM_IMAGE>(hCamera);
-
-
-	//InitializeCriticalSection(&hCriticalSection);
 
 	isStarted = false;
 	isOpened = true;
@@ -390,6 +341,7 @@ bool Sony_Camera::_startAcquisition()
 
 
 	endEvent = CreateEvent(NULL, true, false, NULL);
+	hSemImgValid = CreateSemaphore(NULL, 0, Max_Buffer, _T("SemImgValid"));
 	InitializeCriticalSection(&hCriticalSection);
 
 #ifndef _IMAGECALLBACK_
@@ -423,6 +375,7 @@ bool Sony_Camera::_stopAcquisition()
 
 		delete imgBufPoolHandle;
 		CloseHandle(endEvent);
+		CloseHandle(hSemImgValid);
 		DeleteCriticalSection(&hCriticalSection);
 	}
 
@@ -437,23 +390,31 @@ bool Sony_Camera::_stopAcquisition()
  *				将缓存的内容拷贝到传入的地址中，然后将缓存放回到空闲队列（空闲内存池）中
  * 
  * 参数：		pBuffer	已经申请好的一段内存，用于存放从缓存中拷贝出的数据，供后续的处理使用
+ *				timeOut 超时参数，达到时间后，若仍没有获取到有效的图像，则认为获取图像失败
+ *						非负数表示以ms为单位的等待时间，-1表示永远等待
+ *				注意：	Windows中，超时参数的类型位unsigned long，其中无穷超时INFINITE对应的
+ *						二进制为0xFFFFFFFF,对应signed long的-1。因此，此处直接使用了signed long类型
+ *						的超时参数。
  *
+ * 返回：		true	获取成功
+ *				false	获取失败
  */
-bool Sony_Camera::_getImgBuf(UCHAR *pBuffer)
+bool Sony_Camera::_getImgBuf(UCHAR *pBuffer, signed long timeOut)
 {
 	XCCAM_IMAGE *pImage = NULL;
 
-	// 从队列中取出一块已经填充好的缓冲内存
-	while (1){
-		EnterCriticalSection(&(hCriticalSection));
-		if (pImage = imgBufPoolHandle->PopFront()){
-			// pImage = imgBufPoolHandle->PopFront();
-			LeaveCriticalSection(&(hCriticalSection));
-			break;
-		}
-		LeaveCriticalSection(&(hCriticalSection));
-		Sleep(1);
+	// 等待图像有效
+	if (WaitForSingleObject(hSemImgValid, timeOut) != WAIT_OBJECT_0){
+		return false;
 	}
+
+	// 获取有效的图像缓存
+	EnterCriticalSection(&(hCriticalSection));
+	pImage = imgBufPoolHandle->PopFront();
+	if (pImage == NULL) {
+		return false;
+	}
+	LeaveCriticalSection(&(hCriticalSection));
 
 	// 转换并填充到用户图像内存
 	if (dataType == BayerRG8){
@@ -477,7 +438,7 @@ bool Sony_Camera::_getImgBuf(UCHAR *pBuffer)
 		}
 	}
 	else{
-		// TODO
+		return false;
 	}
 
 	// 将缓冲内存归还给内存池

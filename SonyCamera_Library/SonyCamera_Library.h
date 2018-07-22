@@ -6,7 +6,7 @@ DLL的对外接口
 
 
 #define _C_CPP_INTERFACE_
-// #define _C_CPP_ADDITIONAL_
+#define _C_CPP_ADDITIONAL_
 
 #define _PYTHON_INTERFACE_
 
@@ -20,7 +20,7 @@ EXPORT bool CloseCamera();
 EXPORT bool StartImageAcquisition();
 EXPORT bool StopImageAcquisition();
 EXPORT bool TriggerShooting();
-EXPORT cv::Mat& GetImage();
+EXPORT cv::Mat GetImage(signed long timeOut = 250);
 
 #ifdef _C_CPP_ADDITIONAL_
 #include "SonyCamera_Class.h"

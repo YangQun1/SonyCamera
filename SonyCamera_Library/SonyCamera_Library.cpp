@@ -111,9 +111,15 @@ bool TriggerShooting()
 	return g_CameraHandle->_triggerShooting();
 }
 
-cv::Mat& GetImage()
+cv::Mat GetImage(signed long timeOut)
 {
-	g_CameraHandle->_getImgBuf(mat.data);
+	bool ret;
+	ret = g_CameraHandle->_getImgBuf(mat.data, timeOut);
+
+	if (!ret){
+		cv::Mat emptyMat;
+		return emptyMat;
+	}
 
 	return mat;
 }
@@ -240,11 +246,20 @@ static PyObject * TriggerShooting_Py(PyObject *self, PyObject *args)
 static PyObject * GetImage_Py(PyObject *self, PyObject *args)
 {
 	PyObject *PyArray = Py_None;
+	bool ret;
+	signed long timeOut;
+
+	// 解析输入参数
+	PyArg_ParseTuple(args, "l", &timeOut);
 
 	if (g_CameraHandle->dataType == Mono8 || \
 		g_CameraHandle->dataType == BayerRG8){
 
-		g_CameraHandle->_getImgBuf(g_Buffer_BYTE);
+		ret = g_CameraHandle->_getImgBuf(g_Buffer_BYTE, timeOut);
+		if (!ret){
+			// 获取图像失败
+			Py_RETURN_NONE;
+		}
 
 		npy_intp *Dims = NULL;
 		int dims;
@@ -272,7 +287,11 @@ static PyObject * GetImage_Py(PyObject *self, PyObject *args)
 	else if (g_CameraHandle->dataType == Mono12Packed || \
 		g_CameraHandle->dataType == BayerRG12Packed){
 
-		g_CameraHandle->_getImgBuf((UCHAR *)g_Buffer_SHORT);
+		ret = g_CameraHandle->_getImgBuf((UCHAR *)g_Buffer_SHORT, timeOut);
+		if (!ret){
+			// 获取图像失败
+			Py_RETURN_NONE;
+		}
 
 		npy_intp *Dims = NULL;
 		int dims;
@@ -310,7 +329,7 @@ static PyMethodDef SonyCameraMethods[] = {
 	{ "StartImageAcquisition", StartImageAcquisition_Py, METH_NOARGS, "Function to start image acquisition" },
 	{ "StopImageAcquisition", StopImageAcquisition_Py, METH_NOARGS, "Function to stop image acquisition" },
 	{ "TriggerShooting", TriggerShooting_Py, METH_NOARGS, "Trigger zhe camera to take a photo, only to be used when the camera is in software trigger mode" },
-	{ "GetImage", GetImage_Py, METH_NOARGS, "Function to get an image from camera(not directly from camera,but from image pool actually)" },
+	{ "GetImage", GetImage_Py, METH_VARARGS, "Function to get an image from camera(not directly from camera,but from image pool actually)" },
 	{ NULL, NULL, 0, NULL }
 };
 
