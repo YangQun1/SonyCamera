@@ -205,6 +205,9 @@ BOOL CSetCameraDlg::OnInitDialog()
 	}
 	else{
 		cb_TriggerMode->SetCurSel(1);
+		cb_TriggerSource->EnableWindow(FALSE);
+		sd_TriggerDelay->EnableWindow(FALSE);
+		((CEdit *)GetDlgItem(IDC_EDIT_TRIGGER_DELAY))->EnableWindow(FALSE);
 	}
 
 
