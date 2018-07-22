@@ -143,9 +143,8 @@ Sony_Camera_Handle GetCameraHandle()
 #include <Python.h>
 #include <numpy\ndarrayobject.h>
 
-UCHAR*  g_Buffer_BYTE = NULL;
-USHORT* g_Buffer_SHORT = NULL;
-int height, width, channels;
+UCHAR*  g_Buffer = NULL;
+int height, width, channels, bitPerPixel;
 
 static PyObject * OpenCamera_Py(PyObject *self, PyObject *args)
 {
@@ -191,15 +190,14 @@ static PyObject * StartImageAcquisition_Py(PyObject *self, PyObject *args)
 	}
 
 	// 为待处理图像申请内存
-	int bitPerPixel;
 	g_CameraHandle->_getImgInfo(&height, &width, &bitPerPixel);
 
 	if (bitPerPixel == 8 || bitPerPixel == 24){
-		g_Buffer_BYTE = new UCHAR[height*width*bitPerPixel / 8];
+		g_Buffer = new UCHAR[height*width*bitPerPixel / 8];
 		channels = bitPerPixel / 8;
 	}
 	else if (bitPerPixel == 16 || bitPerPixel == 48){
-		g_Buffer_SHORT = new USHORT[height*width*bitPerPixel / 16];
+		g_Buffer = new UCHAR[height*width*bitPerPixel / 8];
 		channels = bitPerPixel / 16;
 	}
 
@@ -219,13 +217,9 @@ static PyObject * StopImageAcquisition_Py(PyObject *self, PyObject *args)
 	}
 
 	// 释放待处理图像内存
-	if (g_Buffer_BYTE != NULL){
-		delete g_Buffer_BYTE;
-		g_Buffer_BYTE = NULL;
-	}
-	if (g_Buffer_SHORT != NULL){
-		delete g_Buffer_SHORT;
-		g_Buffer_SHORT = NULL;
+	if (g_Buffer != NULL){
+		delete g_Buffer;
+		g_Buffer = NULL;
 	}
 
 	if (ret)
@@ -252,74 +246,43 @@ static PyObject * GetImage_Py(PyObject *self, PyObject *args)
 	// 解析输入参数
 	PyArg_ParseTuple(args, "l", &timeOut);
 
-	if (g_CameraHandle->dataType == Mono8 || \
-		g_CameraHandle->dataType == BayerRG8){
-
-		ret = g_CameraHandle->_getImgBuf(g_Buffer_BYTE, timeOut);
-		if (!ret){
-			// 获取图像失败
-			Py_RETURN_NONE;
-		}
-
-		npy_intp *Dims = NULL;
-		int dims;
-		if (channels == 1){
-			dims = 2;
-			Dims = new npy_intp[2];
-			Dims[0] = height;
-			Dims[1] = width;
-		}
-		else if (channels == 3){
-			dims = 3;
-			Dims = new npy_intp[3];
-			Dims[0] = height;
-			Dims[1] = width;
-			Dims[2] = channels;
-		}
-		else{
-			Py_RETURN_NONE;
-		}
-
-		PyArray = PyArray_SimpleNewFromData(dims, Dims, NPY_UBYTE, g_Buffer_BYTE);
-
-		delete Dims;
+	ret = g_CameraHandle->_getImgBuf(g_Buffer, timeOut);
+	if (!ret){
+		// 获取图像失败
+		Py_RETURN_NONE;
 	}
-	else if (g_CameraHandle->dataType == Mono12Packed || \
-		g_CameraHandle->dataType == BayerRG12Packed){
 
-		ret = g_CameraHandle->_getImgBuf((UCHAR *)g_Buffer_SHORT, timeOut);
-		if (!ret){
-			// 获取图像失败
-			Py_RETURN_NONE;
-		}
-
-		npy_intp *Dims = NULL;
-		int dims;
-		if (channels == 1){
-			dims = 2;
-			Dims = new npy_intp[2];
-			Dims[0] = height;
-			Dims[1] = width;
-		}
-		else if (channels == 3){
-			dims = 3;
-			Dims = new npy_intp[3];
-			Dims[0] = height;
-			Dims[1] = width;
-			Dims[2] = channels;
-		}
-		else{
-			Py_RETURN_NONE;
-		}
-
-		PyArray = PyArray_SimpleNewFromData(dims, Dims, NPY_USHORT, g_Buffer_SHORT);
-
-		delete Dims;
+	npy_intp *Dims = NULL;
+	int dims;
+	if (channels == 1){
+		dims = 2;
+		Dims = new npy_intp[2];
+		Dims[0] = height;
+		Dims[1] = width;
+	}
+	else if (channels == 3){
+		dims = 3;
+		Dims = new npy_intp[3];
+		Dims[0] = height;
+		Dims[1] = width;
+		Dims[2] = channels;
 	}
 	else{
-		//TODO
+		Py_RETURN_NONE;
 	}
 
+	if (bitPerPixel == 8 || bitPerPixel == 24){
+		PyArray = PyArray_SimpleNewFromData(dims, Dims, NPY_UBYTE, g_Buffer);
+	}
+	else if (bitPerPixel == 16 || bitPerPixel == 48){
+		PyArray = PyArray_SimpleNewFromData(dims, Dims, NPY_USHORT, g_Buffer);
+	}
+	else{
+		delete Dims;
+		Py_RETURN_NONE;
+	}
+
+	delete Dims;
 	return PyArray;
 }
 
