@@ -15,12 +15,14 @@ int main()
 	double alpha = (double)255 / 0xFFFF;
 
 	LARGE_INTEGER li;
-	LONGLONG now, last, freq;
+	LONGLONG last, now, freq;
 
 	QueryPerformanceFrequency(&li);
 	freq = li.QuadPart;
+
 	QueryPerformanceCounter(&li);
 	now = last = li.QuadPart;
+
 
 	OpenCamera();
 	StartImageAcquisition();
@@ -30,13 +32,17 @@ int main()
 	cvResizeWindow("Image", 1224, 1024);
 	int j = 0;
 	while (1){
-
-
+		// TriggerShooting();
 		img = GetImage();
+		if (img.empty())
+			continue;
 
 		//std::ostringstream filename;
 		//filename << "E:\\VSProject\\SonyCamera\\image\\" << j << ".png";
 		//cv::imwrite(filename.str(), img);
+
+		cv::imshow("Image", img);
+		key = cv::waitKey(5);
 
 		QueryPerformanceCounter(&li);
 		now = li.QuadPart;
@@ -44,18 +50,18 @@ int main()
 		std::cout << "get time: " << useTime << "ms" << std::endl;
 		last = now;
 
-		cv::imshow("Image", img);
-		key = cv::waitKey(5);
-
 		j++;
 		std::cout << j <<std::endl;
 		if (key == 'q')
 			break;
 
+
 	}
 
 	cv::destroyAllWindows();
+	StopImageAcquisition();
 	CloseCamera();
+
 	system("pause");
 	return 0;
 }

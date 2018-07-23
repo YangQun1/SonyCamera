@@ -34,6 +34,7 @@ public:
 	Sequence_Pool<XCCAM_IMAGE> *imgBufPoolHandle;
 
 	HANDLE hMutex;
+	HANDLE hSemImgValid;
 	CRITICAL_SECTION hCriticalSection;
 
 private:
@@ -50,8 +51,10 @@ public:
 	bool	_openCam();
 	bool	_closeCam();
 	bool	_startAcquisition();
-	bool	_getImgBuf(UCHAR *pBuffer);
+	bool	_stopAcquisition();
+	bool	_getImgBuf(UCHAR *pBuffer, signed long timeOut = 250);
 	bool	_getImgInfo(int *pHeight, int *pWidth, int *pBitPerPixel);
+	bool	_triggerShooting();
 };
 
 typedef Sony_Camera* Sony_Camera_Handle;

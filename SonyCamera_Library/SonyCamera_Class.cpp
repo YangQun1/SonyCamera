@@ -5,6 +5,7 @@
 
 #include <iostream>
 #include <string>
+#include <queue>
 #include <process.h>
 
 using namespace std;
@@ -85,18 +86,76 @@ VOID  CALLBACK ImageDataRcv(HCAMERA hCamera,
 
 #ifndef _IMAGECALLBACK_
 // 定义图像采集线程函数
+//unsigned int __stdcall ImageAcquThread(LPVOID Countext)
+//{
+//	Sony_Camera *pMp = (Sony_Camera *)Countext;
+//
+//	XCCAM_IMAGE *pImage;
+//
+//	//LARGE_INTEGER li;
+//	//LONGLONG start, end, freq;
+//
+//	//QueryPerformanceFrequency(&li);
+//	//freq = li.QuadPart;
+//
+//	while (1){
+//		// 请求退出采集图像事件句柄，若请求到，则退出采集过程
+//		if (WaitForSingleObject(pMp->endEvent, 0) == WAIT_OBJECT_0){
+//			ResetEvent(pMp->endEvent);
+//			break;
+//		}
+//
+//		//QueryPerformanceCounter(&li);
+//		//start = li.QuadPart;
+//
+//		EnterCriticalSection(&(pMp->hCriticalSection));
+//		pImage = pMp->imgBufPoolHandle->ReqBuffer();
+//		LeaveCriticalSection(&(pMp->hCriticalSection));
+//
+//		//XCCAM_ImageReq(pMp->hCamera, pMp->pImage);				
+//		//XCCAM_ImageComplete(pMp->hCamera, pMp->pImage, -1, NULL);
+//
+//		XCCAM_ImageReq(pMp->hCamera, pImage);
+//		XCCAM_ImageComplete(pMp->hCamera, pImage, -1, NULL);
+//
+//		EnterCriticalSection(&(pMp->hCriticalSection));
+//		pMp->imgBufPoolHandle->PushBack(pImage);
+//		LeaveCriticalSection(&(pMp->hCriticalSection));
+//
+//		//QueryPerformanceCounter(&li);
+//		//end = li.QuadPart;
+//		//int useTime = (int)((end - start) * 1000 / freq);
+//		//std::cout << "acqu time: " << useTime << "ms" << std::endl;
+//	}
+//
+//	_endthreadex(0);
+//	return 0;
+//}
+
 unsigned int __stdcall ImageAcquThread(LPVOID Countext)
 {
 	Sony_Camera *pMp = (Sony_Camera *)Countext;
 
-	XCCAM_IMAGE *pImage;
+	XCCAM_IMAGE *pImage_idle;
+	XCCAM_IMAGE *pImage_acqusiting;
+
+	std::queue<XCCAM_IMAGE *> acqusitQueue;
 
 	//LARGE_INTEGER li;
 	//LONGLONG start, end, freq;
-
 	//QueryPerformanceFrequency(&li);
 	//freq = li.QuadPart;
 
+	// 将所有空闲内存段都启动图像采集
+	EnterCriticalSection(&(pMp->hCriticalSection));
+	for (int i = 0; i < Max_Buffer; i++){
+		pImage_idle = pMp->imgBufPoolHandle->ReqBuffer();
+		acqusitQueue.push(pImage_idle);
+		XCCAM_ImageReq(pMp->hCamera, pImage_idle);
+	}
+	LeaveCriticalSection(&(pMp->hCriticalSection));
+
+	int i = 0;
 	while (1){
 		// 请求退出采集图像事件句柄，若请求到，则退出采集过程
 		if (WaitForSingleObject(pMp->endEvent, 0) == WAIT_OBJECT_0){
@@ -107,21 +166,55 @@ unsigned int __stdcall ImageAcquThread(LPVOID Countext)
 		//QueryPerformanceCounter(&li);
 		//start = li.QuadPart;
 
+		// 申请一块空闲内存段
 		EnterCriticalSection(&(pMp->hCriticalSection));
-		pImage = pMp->imgBufPoolHandle->ReqBuffer();
+		pImage_idle = pMp->imgBufPoolHandle->ReqBuffer();
 		LeaveCriticalSection(&(pMp->hCriticalSection));
 
-		XCCAM_ImageReq(pMp->hCamera, pImage);
-		XCCAM_ImageComplete(pMp->hCamera, pImage, -1, NULL);
+		// 取出最先开始采集过程的内存段
+		if (acqusitQueue.empty()){
+			pImage_acqusiting = NULL;
+		}
+		else{
+			pImage_acqusiting = acqusitQueue.front();
+			acqusitQueue.pop();
+		}
 
-		EnterCriticalSection(&(pMp->hCriticalSection));
-		pMp->imgBufPoolHandle->PushBack(pImage);
-		LeaveCriticalSection(&(pMp->hCriticalSection));
+		if (NULL == pImage_idle && NULL == pImage_acqusiting){
+			//Sleep(2);
+			continue;
+		}
 
-		//QueryPerformanceCounter(&li);
-		//end = li.QuadPart;
-		//int useTime = (int)((end - start) * 1000 / freq);
-		//std::cout << "acqu time: " << useTime << "ms" << std::endl;
+		if (NULL != pImage_idle){
+			acqusitQueue.push(pImage_idle);
+			XCCAM_ImageReq(pMp->hCamera, pImage_idle);
+		}
+
+		if (NULL != pImage_acqusiting){
+			// 等待采集完成
+			BOOL status;
+			status = XCCAM_ImageComplete(pMp->hCamera, pImage_acqusiting, -1, NULL);
+			if (TRUE == status){
+				// 放到采集完成队列中，供处理线程使用
+				EnterCriticalSection(&(pMp->hCriticalSection));
+				pMp->imgBufPoolHandle->PushBack(pImage_acqusiting);
+				LeaveCriticalSection(&(pMp->hCriticalSection));
+				ReleaseSemaphore(pMp->hSemImgValid, 1, NULL);	// 信号量加1
+			}
+			else{
+				// 采集图像失败，将这段内存放到空闲队列中，以备下次使用
+				EnterCriticalSection(&(pMp->hCriticalSection));
+				pMp->imgBufPoolHandle->RetBuffer(pImage_acqusiting);
+				LeaveCriticalSection(&(pMp->hCriticalSection));
+			}
+
+
+			//QueryPerformanceCounter(&li);
+			//end = li.QuadPart;
+			//int useTime = (int)((end - start) * 1000 / freq);
+			//std::cout << "acqu time: " << useTime << "ms" << std::endl;
+		}
+
 	}
 
 	_endthreadex(0);
@@ -132,7 +225,7 @@ unsigned int __stdcall ImageAcquThread(LPVOID Countext)
 
 bool Sony_Camera::_openCam()
 {
-	endEvent = CreateEvent(NULL, true, false, NULL);
+	// endEvent = CreateEvent(NULL, true, false, NULL);
 	// rcvTermEvent = CreateEvent(NULL, true, false, NULL);
 
 	XCCAM_SetStructVersion(XCCAM_LIBRARY_STRUCT_VERSION);
@@ -141,7 +234,7 @@ bool Sony_Camera::_openCam()
 	// 打开相机
 	if (!XCCAM_Open(NULL, &hCamera))
 	{
-		CloseHandle(endEvent);
+		//CloseHandle(endEvent);
 		// CloseHandle(rcvTermEvent);
 		return false;
 	}
@@ -149,7 +242,7 @@ bool Sony_Camera::_openCam()
 	// 申请相机的资源？
 	if (!XCCAM_ResourceAlloc(hCamera))
 	{
-		CloseHandle(endEvent);
+		//CloseHandle(endEvent);
 		// CloseHandle(rcvTermEvent);
 		XCCAM_Close(hCamera);
 		hCamera = 0;
@@ -159,14 +252,49 @@ bool Sony_Camera::_openCam()
 	// 获取相机特性句柄
 	if (!XCCAM_GetFeatureHandle(hCamera, (HNodeMap*)&hFeature))
 	{
-		CloseHandle(endEvent);
+		//CloseHandle(endEvent);
 		// CloseHandle(rcvTermEvent);
 		XCCAM_Close(hCamera);
 		hCamera = 0;
 		return false;
 	}
 
-	// 获取相机输出的数据类型
+	isStarted = false;
+	isOpened = true;
+
+	return true;
+}
+
+bool Sony_Camera::_closeCam()
+{
+	if (isOpened == false){
+		return false;
+	}
+
+	if (isStarted == true){
+		_stopAcquisition();
+		isStarted = false;
+	}
+
+	XCCAM_ResourceRelease(hCamera);
+	XCCAM_Close(hCamera);
+	isOpened = false;
+
+	return true;
+}
+
+bool Sony_Camera::_startAcquisition()
+{
+	if (isOpened == false){
+		cout << "Need open camera first!" << endl;
+		return false;
+	}
+	if (isStarted == true){
+		cout << "Acquisition has already been started!" << endl;
+		return false;
+	}
+
+	// 获取相机的图像相关参数
 	char buffer[100];
 	XCCAM_GetFeatureEnumeration(hFeature, "PixelFormat", buffer, 100, FALSE);
 	if (0 == strcmp(buffer, "Mono8")){
@@ -202,8 +330,6 @@ bool Sony_Camera::_openCam()
 		Mode.Parallel_Thread = 4;
 		if (!XCCAM_SetConvMode(hCamera, &Mode, NULL))
 		{
-			CloseHandle(endEvent);
-			// CloseHandle(rcvTermEvent);
 			XCCAM_Close(hCamera);
 			hCamera = 0;
 			return false;
@@ -214,53 +340,9 @@ bool Sony_Camera::_openCam()
 	imgBufPoolHandle = new Sequence_Pool<XCCAM_IMAGE>(hCamera);
 
 
-	hMutex = CreateMutex(NULL, FALSE, _T("ImgBufPoolMutex"));
+	endEvent = CreateEvent(NULL, true, false, NULL);
+	hSemImgValid = CreateSemaphore(NULL, 0, Max_Buffer, _T("SemImgValid"));
 	InitializeCriticalSection(&hCriticalSection);
-
-	isStarted = false;
-	isOpened = true;
-
-	return true;
-}
-
-bool Sony_Camera::_closeCam()
-{
-	if (isOpened == false){
-		return false;
-	}
-
-	if (isStarted == true){
-#ifdef _IMAGECALLBACK_
-		XCCAM_SetImageCallBack(hCamera, NULL, NULL, 0, FALSE);
-		XCCAM_ImageStop(hCamera);
-#else
-		SetEvent(endEvent);
-		WaitForSingleObject(hThread, INFINITE);
-		XCCAM_ImageReqAbortAll(hCamera);
-		XCCAM_ImageStop(hCamera);
-		CloseHandle(hThread);
-#endif
-	}
-
-	// 释放相关资源
-	delete imgBufPoolHandle;
-	XCCAM_ResourceRelease(hCamera);
-	XCCAM_Close(hCamera);
-	CloseHandle(endEvent);
-
-	return true;
-}
-
-bool Sony_Camera::_startAcquisition()
-{
-	if (isOpened == false){
-		cout << "Need open camera first!" << endl;
-		return false;
-	}
-	if (isStarted == true){
-		cout << "Acquisition has already been started!" << endl;
-		return false;
-	}
 
 #ifndef _IMAGECALLBACK_
 	XCCAM_ImageStart(hCamera);
@@ -276,22 +358,63 @@ bool Sony_Camera::_startAcquisition()
 	return true;
 }
 
+bool Sony_Camera::_stopAcquisition()
+{
 
-bool Sony_Camera::_getImgBuf(UCHAR *pBuffer)
+	if (isStarted == true){
+#ifdef _IMAGECALLBACK_
+		XCCAM_SetImageCallBack(hCamera, NULL, NULL, 0, FALSE);
+		XCCAM_ImageStop(hCamera);
+#else
+		SetEvent(endEvent);
+		XCCAM_ImageReqAbortAll(hCamera);
+		WaitForSingleObject(hThread, INFINITE);
+		XCCAM_ImageStop(hCamera);
+		CloseHandle(hThread);
+#endif
+
+		delete imgBufPoolHandle;
+		CloseHandle(endEvent);
+		CloseHandle(hSemImgValid);
+		DeleteCriticalSection(&hCriticalSection);
+	}
+
+	isStarted = false;
+
+	return true;
+}
+
+
+/*
+ * 函数功能：	从采集完成的图像缓存队列中取出一段缓存，
+ *				将缓存的内容拷贝到传入的地址中，然后将缓存放回到空闲队列（空闲内存池）中
+ * 
+ * 参数：		pBuffer	已经申请好的一段内存，用于存放从缓存中拷贝出的数据，供后续的处理使用
+ *				timeOut 超时参数，达到时间后，若仍没有获取到有效的图像，则认为获取图像失败
+ *						非负数表示以ms为单位的等待时间，-1表示永远等待
+ *				注意：	Windows中，超时参数的类型位unsigned long，其中无穷超时INFINITE对应的
+ *						二进制为0xFFFFFFFF,对应signed long的-1。因此，此处直接使用了signed long类型
+ *						的超时参数。
+ *
+ * 返回：		true	获取成功
+ *				false	获取失败
+ */
+bool Sony_Camera::_getImgBuf(UCHAR *pBuffer, signed long timeOut)
 {
 	XCCAM_IMAGE *pImage = NULL;
 
-	// 从队列中取出一块已经填充好的缓冲内存
-	while (1){
-		EnterCriticalSection(&(hCriticalSection));
-		if (pImage = imgBufPoolHandle->PopFront()){
-			// pImage = imgBufPoolHandle->PopFront();
-			LeaveCriticalSection(&(hCriticalSection));
-			break;
-		}
-		LeaveCriticalSection(&(hCriticalSection));
-		Sleep(1);
+	// 等待图像有效
+	if (WaitForSingleObject(hSemImgValid, timeOut) != WAIT_OBJECT_0){
+		return false;
 	}
+
+	// 获取有效的图像缓存
+	EnterCriticalSection(&(hCriticalSection));
+	pImage = imgBufPoolHandle->PopFront();
+	if (pImage == NULL) {
+		return false;
+	}
+	LeaveCriticalSection(&(hCriticalSection));
 
 	// 转换并填充到用户图像内存
 	if (dataType == BayerRG8){
@@ -315,7 +438,7 @@ bool Sony_Camera::_getImgBuf(UCHAR *pBuffer)
 		}
 	}
 	else{
-		// TODO
+		return false;
 	}
 
 	// 将缓冲内存归还给内存池
@@ -330,6 +453,31 @@ bool Sony_Camera::_getImgInfo(int *pHeight, int *pWidth, int *pBitPerPixel){
 	*pHeight = m_height;
 	*pWidth = m_width;
 	*pBitPerPixel = m_bitPerPixel;
+
+	return true;
+}
+
+/*
+ * 函数功能：	仅当相机被设置为软件触发模式时，使用该函数触发相机拍照
+ *
+ */
+bool Sony_Camera::_triggerShooting()
+{
+	if (!isOpened){
+		cout << "Error:Camera is not opened!" << endl;
+		return false;
+	}
+
+	if (!isStarted){
+		cout << "Warning: Acqusition is not started!" << endl;
+		return false;
+	}
+
+	BOOL ret = XCCAM_FeatureCommand(hFeature, "TriggerSoftware");
+	if (FALSE == ret){
+		cout << "Error:Trigger failed!" << endl;
+		return false;
+	}
 
 	return true;
 }

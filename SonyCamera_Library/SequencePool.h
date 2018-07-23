@@ -121,6 +121,28 @@ void Sequence_Pool<T>::RetBuffer(T* element)
 	return;
 }
 
+//template <class T>
+//T* Sequence_Pool<T>::ReqBuffer()
+//{
+//	T *temp = NULL;
+//
+//	// 返回内存池中某个未被占用的buffer
+//	for (int i = 0; i < Max_Buffer; i++){
+//		if (bufferOccup[i] == false){
+//			bufferOccup[i] = true;
+//			temp = bufferPool[i];
+//			break;
+//		}
+//	}
+//
+//	if(temp == NULL){
+//		temp = bufferQueue.front();	// 返回队首元素
+//		bufferQueue.pop();			// 移除队首元素
+//	}
+//
+//	return temp;
+//}
+
 template <class T>
 T* Sequence_Pool<T>::ReqBuffer()
 {
@@ -135,14 +157,8 @@ T* Sequence_Pool<T>::ReqBuffer()
 		}
 	}
 
-	if(temp == NULL){
-		temp = bufferQueue.front();	// 返回队首元素
-		bufferQueue.pop();			// 移除队首元素
-	}
-
 	return temp;
 }
-
 
 template <class T>
 void Sequence_Pool<T>::PushBack(T* element)
