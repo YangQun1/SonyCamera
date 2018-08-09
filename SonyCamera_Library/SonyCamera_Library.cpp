@@ -296,10 +296,33 @@ static PyMethodDef SonyCameraMethods[] = {
 	{ NULL, NULL, 0, NULL }
 };
 
-PyMODINIT_FUNC initSonyCamera(void) {
-	(void)Py_InitModule("SonyCamera", SonyCameraMethods);
-	import_array();
+
+//-------- python2 ------------------------
+//PyMODINIT_FUNC initSonyCamera(void) {
+//	(void)Py_InitModule("SonyCamera", SonyCameraMethods);
+//	import_array();
+//}
+//------------------------------------------
+
+//-------- python3 ------------------------
+static struct PyModuleDef SonyCameraModule =
+{
+	PyModuleDef_HEAD_INIT,
+	"SonyCamera", /* name of module */
+	"",          /* module documentation, may be NULL */
+	-1,          /* size of per-interpreter state of the module, or -1 if the module keeps state in global variables. */
+	SonyCameraMethods
+};
+
+// Note that the name of the PyMODINIT_FUNC function must be of the form PyInit_<name> where <name> is the name of your module.
+PyMODINIT_FUNC PyInit_SonyCamera(void)
+{
+	return PyModule_Create(&SonyCameraModule);
 }
+//------------------------------------------
+
+
+
 
 
 #endif
