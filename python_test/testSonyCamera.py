@@ -25,12 +25,12 @@ if __name__ == "__main__":
         
         #imList.append(copy.deepcopy(im))
         j = j+1
-        print j
+        print(j)
         cv2.imshow('Image', im)
         key = cv2.waitKey(5)
 
         now = time.clock()
-        print now-last
+        print(now-last)
         last = now
 
         if key == ord('q'):
