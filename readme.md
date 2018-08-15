@@ -188,9 +188,8 @@ if __name__ == "__main__":
 本工程还实现了一个简单的GUI程序用于对相机进行测试和参数配置
 
 # Notes
-- 如果你想在其他版本的`Python`程序中使用本接口，只需要将本接口的工程属性中与`Python`相关的选项重新配置即可，包括`Python.h`、`numpy\ndarrayobject.h`文件的路径和对应版本的`pythonxx.lib`文件的路径。
+- 如果你想在其他版本的`Python`程序中使用本接口，只需要将本接口的工程属性中与`Python`相关的选项重新配置即可，包括`Python.h`、`numpy\ndarrayobject.h`文件的路径和对应版本的`pythonxx.lib`文件的路径。另外，不同版本的Python的C-API的函数名或参数可能不一样，需要根据实际情况调整。
 - 本程序目前实现的功能均在XCG-CG510相机上测试通过
-- 本工程中还实现了一个简单的基于MFC的GUI程序，用于测试相机
 
 # Update
 - 增加了12Bit灰度图像的采集功能
