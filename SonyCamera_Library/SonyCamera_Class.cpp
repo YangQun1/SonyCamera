@@ -132,6 +132,7 @@ VOID  CALLBACK ImageDataRcv(HCAMERA hCamera,
 //	return 0;
 //}
 
+// unsigned int __stdcall ImageAcquThread(LPVOID Countext)
 unsigned int __stdcall ImageAcquThread(LPVOID Countext)
 {
 	Sony_Camera *pMp = (Sony_Camera *)Countext;

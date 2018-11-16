@@ -1,7 +1,7 @@
 #pragma once
 
 
-#include "stdafx.h"
+//#include "stdafx.h"
 #include <XCCamAPI.h>
 
 #include <queue>

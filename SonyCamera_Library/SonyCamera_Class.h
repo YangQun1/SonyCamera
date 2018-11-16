@@ -1,9 +1,11 @@
 #pragma once
 
-#include "stdafx.h"
+// #include "stdafx.h"
 #include <XCCamAPI.h>
 
 #include "SequencePool.h"
+
+typedef void *HANDLE;
 
 // 相机类型和输出数据格式
 enum DATA_TYPE{
@@ -19,12 +21,13 @@ public:
 	Sony_Camera(){};
 	~Sony_Camera(){};
 
-	HANDLE			endEvent;			// 开始退出采集过程事件
-	// HANDLE			rcvTermEvent;		// 采集线程已经退出事件
 	HCAMERA			hCamera;			// 相机句柄
 	XCCAM_IMAGE		*pImage;			// 相机图像句柄
 	HFEATURE		*hFeature;			// 相机特性句柄
 	PBITMAPINFO		m_pBitInfo;			// BMP图像属性，相机的API做图像转换时使用
+
+private:
+	HANDLE			endEvent;			// 开始退出采集过程事件
 	DATA_TYPE		dataType;
 	HANDLE			hThread;
 	unsigned int	threadID;
@@ -47,7 +50,11 @@ private:
 	bool isStarted;
 	bool isOpened;
 
+	
+
 public:
+	friend unsigned int __stdcall ImageAcquThread(LPVOID Countext);
+
 	bool	_openCam();
 	bool	_closeCam();
 	bool	_startAcquisition();

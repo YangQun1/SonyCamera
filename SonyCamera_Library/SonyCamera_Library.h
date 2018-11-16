@@ -6,9 +6,12 @@ DLL的对外接口
 
 
 #define _C_CPP_INTERFACE_
-#define _C_CPP_ADDITIONAL_
 
+// 定义这个宏，使能额外的C++接口，用于访问Sony_Camera类
+#define _C_CPP_ADDITIONAL_
+// 定义这个宏，使能python接口
 #define _PYTHON_INTERFACE_
+
 
 #ifdef _C_CPP_INTERFACE_
 
